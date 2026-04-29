@@ -1,7 +1,7 @@
 use include_dir::{include_dir, Dir, DirEntry};
 use std::path::Path;
 
-static TEMPLATE: Dir = include_dir!("$CARGO_MANIFEST_DIR/template");
+static TEMPLATE: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/template");
 
 pub fn run(project_name: &str) {
     let dest = Path::new(project_name);
