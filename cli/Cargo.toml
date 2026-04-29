@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/creativebash/rustwing"
 keywords = ["saas", "web", "framework", "scaffold", "cli"]
 categories = ["development-tools", "command-line-utilities"]
-include = ["src/**/*", "template/**/*", "Cargo.toml"]
+include = ["src/**/*", "template/**/*", "Cargo.toml", "Cargo.lock"]
 
 [[bin]]
 name = "rustwing"
