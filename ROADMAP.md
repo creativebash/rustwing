@@ -7,8 +7,8 @@ These are the items I want polished before the public announcement.
 ### Before publishing
 
 - [ ] **Register domains** — `rustwing.rs` (primary), `rustwing.com`, `rustwing.dev` (redirects)
-- [ ] **`rustwing::prelude` module** — one `use rustwing::prelude::*;` should bring in `generic_crud`, `AuthEngine`, `CoreError`, `ModelName`, `Insertable`, `Updateable`. Currently users have to know internal paths.
-- [ ] **Auth middleware** — `AuthUser` extractor exists but no route uses it. Every generated handler should require auth by default. Opt-out annotation for public routes.
+- [x] **`rustwing::prelude` module** — one `use rustwing::prelude::*;` brings in `generic_crud`, `AuthEngine`, `CoreError`, `ModelName`, `Insertable`, `Updateable`.
+- [x] **Auth middleware** — `AuthUser` extractor with JSON error responses. All generated handlers require auth by default.
 - [ ] **Service layer consistency** — `Post` routes skip the service layer entirely. Generated resources should always go through a `XxxService`. Makes framework-level hooks (audit, events) possible.
 - [ ] **Feature flags on `rustwing`** — `rig-core` (LLM) and `argon2` (auth) are heavy deps. Users building a pure CRUD API shouldn't compile DeepSeek SDK. Make them optional:
 
