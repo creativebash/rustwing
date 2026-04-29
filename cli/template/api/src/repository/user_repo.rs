@@ -1,4 +1,4 @@
-use rustwing::repository::traits::ModelName;
+use rustwing::prelude::*;
 use crate::domain::user::User;
 
 impl ModelName for User {

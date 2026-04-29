@@ -13,7 +13,7 @@ use crate::{
     http::extractors::AuthUser,
     state::AppState,
 };
-use rustwing::repository::generic_crud;
+use rustwing::prelude::*;
 
 #[derive(Deserialize)]
 pub struct CursorPagination {

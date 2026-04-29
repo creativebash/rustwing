@@ -7,6 +7,7 @@ mod state;
 
 use rustwing::infrastructure::llm::build_client;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]

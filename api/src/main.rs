@@ -5,7 +5,7 @@ mod repository;
 mod services;
 mod state;
 
-use rustwing::infrastructure::llm::build_client;
+use rustwing::infrastructure::llm::build_client;  // factory function, not in prelude
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 

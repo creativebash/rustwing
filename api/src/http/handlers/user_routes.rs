@@ -15,7 +15,7 @@ use crate::{
     services::user_service::UserService,
     state::AppState,
 };
-use rustwing::repository::generic_crud;
+use rustwing::prelude::*;
 
 #[derive(Deserialize)]
 pub struct Pagination {

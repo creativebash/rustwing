@@ -4,10 +4,7 @@ use crate::{
     http::dtos::user_dto::CreateUser,
     repository::user_repo::InsertUser,
 };
-use rustwing::{
-    infrastructure::llm::{LlmRef, LlmRequest},
-    repository::generic_crud,
-};
+use rustwing::prelude::*;
 use sqlx::PgPool;
 
 pub struct UserService;

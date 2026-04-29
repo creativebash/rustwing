@@ -1,5 +1,5 @@
 use axum::{Json, extract::State, http::StatusCode};
-use rustwing::infrastructure::auth::AuthEngine;
+use rustwing::prelude::*;
 use validator::Validate;
 
 use crate::{

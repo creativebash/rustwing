@@ -1,4 +1,4 @@
-use rustwing::infrastructure::llm::LlmRef;
+use rustwing::prelude::*;
 use sqlx::PgPool;
 
 #[derive(Clone)]

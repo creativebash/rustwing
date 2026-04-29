@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use rustwing::error::CoreError;
+use rustwing::prelude::*;
 use serde_json::json;
 use thiserror::Error;
 use validator::ValidationErrors;

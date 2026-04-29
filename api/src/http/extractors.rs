@@ -3,7 +3,7 @@ use axum::{
     extract::FromRequestParts,
     http::{StatusCode, request::Parts},
 };
-use rustwing::infrastructure::auth::AuthEngine;
+use rustwing::prelude::*;
 use serde_json::{json, Value};
 use uuid::Uuid;
 

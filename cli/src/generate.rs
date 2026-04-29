@@ -557,7 +557,7 @@ impl Updateable for {Model}Update {{
 
     format!(
         r#"use sqlx::{{Postgres, QueryBuilder}};
-use rustwing::repository::traits::{{Insertable, ModelName, Updateable, UpdateResult}};
+use rustwing::prelude::*;
 {uuid_import}{imports}
 
 impl ModelName for {Model} {{
@@ -587,7 +587,7 @@ use crate::{{
     repository::{lower}_repo::{{Insert{Model}, {Model}Update}},
     state::AppState,
 }};
-use rustwing::repository::generic_crud;
+use rustwing::prelude::*;
 
 pub async fn list_{lower}s(
     auth: AuthUser,

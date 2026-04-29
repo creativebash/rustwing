@@ -5,7 +5,7 @@ use crate::{
     state::AppState,
 };
 use axum::{Json, extract::State};
-use rustwing::infrastructure::llm::LlmRequest;
+use rustwing::prelude::*;
 
 pub async fn complete(
     _auth: AuthUser,

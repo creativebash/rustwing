@@ -15,7 +15,7 @@ use crate::{
     repository::post_repo::{InsertPost, PostUpdate},
     state::AppState,
 };
-use rustwing::repository::generic_crud;
+use rustwing::prelude::*;
 
 pub async fn list_posts(
     _auth: AuthUser,
