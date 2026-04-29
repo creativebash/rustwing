@@ -2,9 +2,10 @@ mod generate;
 mod new;
 
 use clap::{Parser, Subcommand};
+use std::process::Command;
 
 #[derive(Parser)]
-#[command(name = "rustwing", about = "Rustwing CLI - Full-stack Rust SaaS framework")]
+#[command(name = "rustwing", about = "Rustwing CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -17,6 +18,8 @@ enum Commands {
         /// Project name
         name: String,
     },
+    /// Run the API server (cargo run --bin api)
+    Run,
     /// Generate a resource, model, etc.
     #[command(alias = "g")]
     Generate {
@@ -34,6 +37,18 @@ fn main() {
     let cli = Cli::parse();
     match cli.command {
         Commands::New { name } => new::run(&name),
+        Commands::Run => run(),
         Commands::Generate { r#type, name, fields } => generate::run(&r#type, &name, &fields),
+    }
+}
+
+fn run() {
+    let status = Command::new("cargo")
+        .args(["run", "--bin", "api"])
+        .status()
+        .expect("Failed to run cargo");
+
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
     }
 }

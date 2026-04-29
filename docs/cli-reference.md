@@ -10,6 +10,16 @@ rustwing new my_app
 
 Generates a complete workspace with an API server, background worker skeleton, and frontend directory.
 
+## `rustwing run`
+
+Runs the API server (`cargo run --bin api`).
+
+```bash
+rustwing run
+```
+
+Must be run from the project root.
+
 ## `rustwing generate` (alias: `g`)
 
 Generates new code within an existing project.

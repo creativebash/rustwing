@@ -48,7 +48,7 @@ cp .env.example .env
 # Edit DATABASE_URL in .env
 
 # Start the API server — creates tables automatically
-cargo run --bin api
+rustwing run
 ```
 
 ## Generate a resource

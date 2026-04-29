@@ -42,6 +42,12 @@ cp .env.example .env
 ## Run
 
 ```bash
+rustwing run
+```
+
+Or directly with cargo:
+
+```bash
 cargo run --bin api
 ```
 
