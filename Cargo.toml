@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "rustwing",
+    "api",
+    "cli"
+]
+resolver = "3"

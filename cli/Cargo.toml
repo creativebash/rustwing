@@ -1,0 +1,18 @@
+[package]
+name = "rustwing-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Rustwing CLI — scaffold, generate, and manage Rustwing projects"
+license = "MIT"
+repository = "https://github.com/creativebash/rustwing"
+keywords = ["saas", "web", "framework", "scaffold", "cli"]
+categories = ["development-tools", "command-line-utilities"]
+include = ["src/**/*", "template/**/*", "Cargo.toml"]
+
+[[bin]]
+name = "rustwing"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+include_dir = "0.7"

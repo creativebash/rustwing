@@ -1,0 +1,20 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustwing = "0.1"
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.8", features = ["serde", "v4", "v7"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "json", "chrono"] }
+validator = { version = "0.19", features = ["derive"] }
+jsonwebtoken = "10.3"

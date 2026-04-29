@@ -1,0 +1,11 @@
+ cargo run --bin scaffold -- resource comment \
+ --fields "post_id:uuid:required:none" \
+ --fields "author_name:string:required:length(1,100)" \
+ --fields "author_email:string:required:email" \
+ --fields "content:string:required:length(1,2000)" \
+ --fields "is_approved:bool:required:none"
+ 
+ cargo run --bin scaffold -- resource post \
+  --fields "user_id:uuid:required:none" \
+  --fields "title:string:required:length(1,255)" \
+  --fields "body:string:required:none"
