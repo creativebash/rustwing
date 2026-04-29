@@ -1,5 +1,6 @@
 mod generate;
 mod new;
+mod template_data;
 
 use clap::{Parser, Subcommand};
 use std::path::Path;

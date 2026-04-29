@@ -14,4 +14,3 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-include_dir = "0.7"
