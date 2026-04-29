@@ -155,6 +155,11 @@ pub fn run(gen_type: &str, name: &str, field_args: &[String]) {
         fields.len()
     );
 
+    if gen_type == "resource" && fields.is_empty() {
+        println!("   ⚠️  No fields specified. Use --fields to add fields.");
+        println!("   Example: --fields 'title:string:required:length(1,255)'\n");
+    }
+
     let prefix = project_prefix();
     let s = |path: &str| -> String {
         prefix.join(path).to_string_lossy().to_string()

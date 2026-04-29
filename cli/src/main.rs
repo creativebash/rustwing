@@ -2,10 +2,15 @@ mod generate;
 mod new;
 
 use clap::{Parser, Subcommand};
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Parser)]
-#[command(name = "rustwing", about = "Rustwing CLI")]
+#[command(
+    name = "rustwing",
+    about = "Rustwing CLI",
+    version = "0.1.0"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -43,10 +48,15 @@ fn main() {
 }
 
 fn run() {
+    if !Path::new("Cargo.toml").exists() {
+        eprintln!("❌ No Cargo.toml found. Run this from a Rustwing project root.");
+        std::process::exit(1);
+    }
+
     let status = Command::new("cargo")
         .args(["run", "--bin", "api"])
         .status()
-        .expect("Failed to run cargo");
+        .expect("Failed to run cargo — is it installed?");
 
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
