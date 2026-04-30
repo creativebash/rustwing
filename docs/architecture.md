@@ -1,5 +1,18 @@
 # Architecture
 
+## Prelude
+
+```rust
+use rustwing::prelude::*;
+```
+
+Brings in the most common framework items:
+- `CoreError` — error types
+- `AuthEngine` — password hashing and JWT
+- `LlmRef`, `LlmRequest`, `LlmResponse` — LLM types
+- `generic_crud` — CRUD functions module
+- `ModelName`, `Insertable`, `Updateable`, `UpdateResult` — repository traits
+
 ## Layers
 
 ```

@@ -12,7 +12,7 @@
 cargo install rustwing-cli
 rustwing new my_app
 cd my_app
-cargo run --bin api
+rustwing run
 ```
 
 </div>
@@ -49,7 +49,6 @@ cp .env.example .env
 
 # Start the API server — creates tables automatically
 rustwing run
-```
 
 ## Generate a resource
 
