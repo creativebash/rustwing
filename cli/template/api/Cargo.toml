@@ -17,4 +17,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenvy = "0.15"
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "json", "chrono", "migrate"] }
 validator = { version = "0.19", features = ["derive"] }
-jsonwebtoken = "10.3"
+jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
