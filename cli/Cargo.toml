@@ -1,9 +1,10 @@
 [package]
 name = "rustwing-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Rustwing CLI — scaffold, generate, and manage Rustwing projects"
 license = "MIT"
+readme = "../README.md"
 repository = "https://github.com/creativebash/rustwing"
 keywords = ["saas", "web", "framework", "scaffold", "cli"]
 categories = ["development-tools", "command-line-utilities"]

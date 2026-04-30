@@ -1,9 +1,10 @@
 [package]
 name = "rustwing"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
-description = "Full-stack Rust SaaS framework — auth, CRUD, LLM, background jobs"
+description = "Full-stack Rust SaaS framework built on Axum — trait-driven CRUD, auth, LLM"
 license = "MIT"
+readme = "../README.md"
 repository = "https://github.com/creativebash/rustwing"
 keywords = ["saas", "web", "framework", "axum", "crud"]
 categories = ["web-programming", "database"]

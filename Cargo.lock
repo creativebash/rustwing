@@ -2185,7 +2185,7 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "rustwing"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "argon2",
  "async-trait",
@@ -2201,7 +2201,7 @@ dependencies = [
 
 [[package]]
 name = "rustwing-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
 ]
