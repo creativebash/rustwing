@@ -2,4 +2,5 @@
 .env
 *.swp
 .idea/
+ROADMAP.private.md
 
