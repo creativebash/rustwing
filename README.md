@@ -15,6 +15,8 @@ cd my_app
 rustwing run
 ```
 
+</div>
+
 The generated project automatically adds `rustwing` as a dependency. To add the framework to an existing project: `cargo add rustwing`.
 
 ## What you get
