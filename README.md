@@ -15,13 +15,7 @@ cd my_app
 rustwing run
 ```
 
-</div>
-
-## Why Rustwing?
-
-SaaS applications share ~80% boilerplate — auth, CRUD, database migrations, background jobs, LLM integration. Rustwing bakes those in so you only write the 20% that makes your app unique.
-
-Rust + Axum + PostgreSQL. Opinionated, extensible, compiled.
+The generated project automatically adds `rustwing` as a dependency. To add the framework to an existing project: `cargo add rustwing`.
 
 ## What you get
 
@@ -49,6 +43,9 @@ cp .env.example .env
 
 # Start the API server — creates tables automatically
 rustwing run
+```
+
+The framework (`rustwing` crate) is added automatically to generated projects. To use it in an existing project: `cargo add rustwing`.
 
 ## Generate a resource
 
