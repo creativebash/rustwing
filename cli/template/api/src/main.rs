@@ -47,8 +47,10 @@ async fn main() {
         jwt_secret,
     };
 
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{port}");
     let app = http::app_router(state);
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tracing::info!("Listening on http://0.0.0.0:3000");
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    tracing::info!("Listening on http://localhost:{port}");
     axum::serve(listener, app).await.unwrap();
 }
