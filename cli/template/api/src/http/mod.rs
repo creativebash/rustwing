@@ -10,6 +10,7 @@ use axum::{
 
 pub fn app_router(state: AppState) -> Router {
     Router::new()
+        .route("/", get(handlers::root::health))
         .route("/auth/register", post(handlers::auth_routes::register))
         .route("/auth/login", post(handlers::auth_routes::login))
         .route("/users/cursor", get(handlers::user_routes::list_users_cursor))
