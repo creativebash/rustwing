@@ -10,7 +10,6 @@ use std::process::Command;
 #[command(
     name = "rustwing",
     about = "Rustwing CLI",
-    version = "0.1.0"
 )]
 struct Cli {
     #[command(subcommand)]
