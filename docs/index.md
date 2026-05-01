@@ -1,6 +1,6 @@
 # Rustwing documentation
 
-Rustwing is a full-stack Rust SaaS framework with auth, CRUD, LLM integration, and background jobs built in.
+Rustwing is an Axum-based Rust application framework with auth, CRUD, LLM integration, and background jobs built in.
 
 ## Getting started
 

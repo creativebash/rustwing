@@ -2,7 +2,7 @@
 name = "rustwing"
 version = "0.1.2"
 edition = "2024"
-description = "Full-stack Rust SaaS framework built on Axum — trait-driven CRUD, auth, LLM"
+description = "The application framework for building Rust apps with Axum — auth, CRUD scaffolding, migrations, workers, and LLM hooks included."
 license = "MIT"
 readme = "../README.md"
 repository = "https://github.com/creativebash/rustwing"

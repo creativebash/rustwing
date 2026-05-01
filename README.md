@@ -2,11 +2,27 @@
 
 # Rustwing
 
-**Full-stack Rust SaaS framework built on Axum — auth, CRUD, LLM, background jobs**
+**The application framework for building Rust apps with Axum.**
+
+Rustwing is a batteries-included application framework that helps you build production-ready Rust web apps faster. It provides structure, conventions, and ready-made features on top of Axum, so you can focus on your product instead of boilerplate.
 
 [![Crates.io](https://img.shields.io/crates/v/rustwing.svg)](https://crates.io/crates/rustwing)
 [![Crates.io](https://img.shields.io/crates/v/rustwing-cli.svg)](https://crates.io/crates/rustwing-cli)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+</div>
+
+## What you get
+
+- **Auth** — Argon2 password hashing + JWT tokens out of the box
+- **CRUD scaffolding** — Generate full REST endpoints without writing SQL
+- **Migrations** — Automatic database migrations on run
+- **Background workers** — Built-in structure for async job processing
+- **LLM hooks** — Pluggable AI integrations (DeepSeek, local stubs)
+- **Scaffolding CLI** — Generate resources, models, handlers, and routes instantly
+- **Error handling** — Clean mapping of database and application errors
+
+## Quick start
 
 ```bash
 cargo install rustwing-cli
@@ -15,39 +31,26 @@ cd my_app
 rustwing run
 ```
 
-</div>
+## Philosophy
 
-The generated project automatically adds `rustwing` as a dependency. To add the framework to an existing project: `cargo add rustwing`.
+Rustwing is not a replacement for Axum — it builds on top of it.
 
-## What you get
+- **Axum handles HTTP**
+- **Rustwing handles your application**
 
-- **Auth** — Argon2 password hashing + JWT tokens, ready out of the box
-- **Generic CRUD** — implement 3 traits, get full REST endpoints without writing SQL
-- **LLM integration** — pluggable AI backend (DeepSeek, stub for local dev)
-- **Scaffolding** — `rustwing g resource post title:string body:text` generates model, DTOs, repo glue, handlers, router, migration
-- **Background worker** — skeleton crate ready for async job processing
-- **Migrations** — run automatically on `cargo run`, no manual steps
-- **Error handling** — PG error code mapping (unique violations → 409, not 500)
+It provides a structured, batteries-included starting point for building real-world Rust apps, especially SaaS-style backends.
 
-## Quick start
+## Positioning
 
-```bash
-# Install
-cargo install rustwing-cli
+Rustwing is an **application framework**, not a low-level web framework.
 
-# Create a project
-rustwing new my_saas
-cd my_saas
+It sits above Axum and gives you:
 
-# Configure your database
-cp .env.example .env
-# Edit DATABASE_URL in .env
+- a consistent project structure
+- built-in features like auth and CRUD
+- tooling to generate and scale your app quickly
 
-# Start the API server — creates tables automatically
-rustwing run
-```
-
-The framework (`rustwing` crate) is added automatically to generated projects. To use it in an existing project: `cargo add rustwing`.
+Think less boilerplate, more building.
 
 ## Generate a resource
 
