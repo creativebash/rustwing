@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::state::AppState;
 
 pub struct AuthUser {
+    #[allow(dead_code)]
     pub id: Uuid,
 }
 

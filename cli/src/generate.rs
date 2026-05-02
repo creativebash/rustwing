@@ -1,7 +1,6 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn project_prefix() -> PathBuf {
     if Path::new("api/src/domain/mod.rs").exists() {
@@ -196,8 +195,8 @@ pub fn run(gen_type: &str, name: &str, field_args: &[String]) {
     let trigger_path = m_dir.join("00000000000000_create_trigger_function.sql");
     create_file(&trigger_path.to_string_lossy(), TRIGGER_FUNCTION_SQL);
 
-    let ts = migration_timestamp();
-    let mpath = m_dir.join(format!("{}_create_{}.sql", ts, table_name));
+    let ver = next_migration_version(&m_dir);
+    let mpath = m_dir.join(format!("{}_create_{}.sql", ver, table_name));
     create_file(&mpath.to_string_lossy(), &table_migration_sql(&table_name, &fields));
 
     println!();
@@ -273,49 +272,21 @@ fn uppercase_first(s: &str) -> String {
     }
 }
 
-fn migration_timestamp() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let mut rem = secs;
-    let ss = rem % 60;
-    rem /= 60;
-    let mm = rem % 60;
-    rem /= 60;
-    let hh = rem % 24;
-    rem /= 24;
-    let (y, mo, d) = days_to_ymd(rem as u32);
-
-    format!("{:04}{:02}{:02}{:02}{:02}{:02}", y, mo, d, hh, mm, ss)
-}
-
-fn days_to_ymd(mut days: u32) -> (u32, u32, u32) {
-    let year = 1970u32;
-    let mut y = year;
-    loop {
-        let in_year = if is_leap(y) { 366 } else { 365 };
-        if days < in_year { break; }
-        days -= in_year;
-        y += 1;
+fn next_migration_version(m_dir: &Path) -> String {
+    let mut max_ver: u64 = 0;
+    if m_dir.exists() {
+        if let Ok(entries) = fs::read_dir(m_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if let Some(ver_str) = name.split('_').next() {
+                    if let Ok(ver) = ver_str.parse::<u64>() {
+                        max_ver = max_ver.max(ver);
+                    }
+                }
+            }
+        }
     }
-    let ml = [
-        31u32,
-        if is_leap(y) { 29 } else { 28 },
-        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
-    ];
-    let mut month = 1u32;
-    for &len in &ml {
-        if days < len { break; }
-        days -= len;
-        month += 1;
-    }
-    (y, month, days + 1)
-}
-
-fn is_leap(y: u32) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    format!("{:014}", max_ver + 1)
 }
 
 fn table_migration_sql(table: &str, fields: &[Field]) -> String {
@@ -327,16 +298,16 @@ fn table_migration_sql(table: &str, fields: &[Field]) -> String {
 
     format!(
         r#"-- Create {table} table
-CREATE TABLE {table} (
+CREATE TABLE IF NOT EXISTS {table} (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 {col_defs}    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS set_timestamp ON {table};
 CREATE TRIGGER set_timestamp
 BEFORE UPDATE ON {table}
-FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
-"#,
+FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();"#,
         table = table,
         col_defs = col_defs,
     )
@@ -554,16 +525,15 @@ impl Updateable for {Model}Update {{
         String::new()
     };
 
-    let uuid_import = if gen_type == "resource" {
-        "use uuid::Uuid;\n"
+    let sqlx_import = if gen_type == "resource" {
+        "use sqlx::{Postgres, QueryBuilder};\n"
     } else {
         ""
     };
 
     format!(
-        r#"use sqlx::{{Postgres, QueryBuilder}};
-use rustwing::prelude::*;
-{uuid_import}{imports}
+        r#"{sqlx_import}use rustwing::prelude::*;
+{imports}
 
 impl ModelName for {Model} {{
     fn table_name() -> &'static str {{ "{table}" }}
@@ -573,7 +543,7 @@ impl ModelName for {Model} {{
         table = table,
         imports = imports,
         resource_impls = resource_impls,
-        uuid_import = uuid_import,
+        sqlx_import = sqlx_import,
     )
 }
 
@@ -595,7 +565,7 @@ use crate::{{
 use rustwing::prelude::*;
 
 pub async fn list_{lower}s(
-    auth: AuthUser,
+    _auth: AuthUser,
     State(state): State<AppState>,
     Query(p): Query<Pagination>,
 ) -> Result<Json<Vec<{Model}Response>>, AppError> {{
@@ -604,7 +574,7 @@ pub async fn list_{lower}s(
 }}
 
 pub async fn list_{lower}s_cursor(
-    auth: AuthUser,
+    _auth: AuthUser,
     State(state): State<AppState>,
     Query(p): Query<CursorPagination>,
 ) -> Result<Json<Vec<{Model}Response>>, AppError> {{
@@ -614,7 +584,7 @@ pub async fn list_{lower}s_cursor(
 }}
 
 pub async fn get_{lower}(
-    auth: AuthUser,
+    _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<{Model}Response>, AppError> {{
@@ -623,7 +593,7 @@ pub async fn get_{lower}(
 }}
 
 pub async fn create_{lower}(
-    auth: AuthUser,
+    _auth: AuthUser,
     State(state): State<AppState>,
     Json(payload): Json<Create{Model}>,
 ) -> Result<(StatusCode, Json<{Model}Response>), AppError> {{
@@ -634,7 +604,7 @@ pub async fn create_{lower}(
 }}
 
 pub async fn update_{lower}(
-    auth: AuthUser,
+    _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<Update{Model}>,
@@ -645,7 +615,7 @@ pub async fn update_{lower}(
 }}
 
 pub async fn delete_{lower}(
-    auth: AuthUser,
+    _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {{

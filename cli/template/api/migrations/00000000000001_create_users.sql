@@ -1,4 +1,4 @@
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     password_hash   TEXT NOT NULL,
     username        TEXT NOT NULL,
@@ -6,9 +6,12 @@ CREATE TABLE users (
     credit_balance  INTEGER NOT NULL DEFAULT 0,
     bio             TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(username),
+    UNIQUE(email)
 );
 
+DROP TRIGGER IF EXISTS set_timestamp ON users;
 CREATE TRIGGER set_timestamp
 BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();

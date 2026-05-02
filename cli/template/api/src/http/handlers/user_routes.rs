@@ -16,6 +16,12 @@ use crate::{
 use rustwing::prelude::*;
 
 #[derive(Deserialize)]
+pub struct Pagination {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Deserialize)]
 pub struct CursorPagination {
     pub after: Option<Uuid>,
     pub limit: Option<i64>,
