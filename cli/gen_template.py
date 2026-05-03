@@ -1,3 +1,6 @@
+# Prefer using the Rust equivalent: cd cli && cargo run --bin gen-template
+# Python version kept as fallback for systems without Rust toolchain.
+
 import os, json
 
 template_dir = "template"

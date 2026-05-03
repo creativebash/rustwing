@@ -59,19 +59,29 @@ The server:
 ## Test the API
 
 ```bash
-# Register a user
-curl -X POST http://localhost:3000/auth/register \
+# Register a user (returns a JWT token + user info)
+curl -s -X POST http://localhost:3000/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"username":"demo","email":"demo@test.com","password":"password123"}'
+  -d '{"username":"demo","email":"demo@test.com","password":"password123"}' | jq .
+# The token in the response can be used immediately for authenticated requests.
+# If the registration token does not work (e.g., "Invalid or expired token"),
+# log in instead — both return the same type of token:
 
-# Returns a JWT token — use it for authenticated requests
-TOKEN="<token-from-response>"
+# Login to get a fresh token
+curl -s -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@test.com","password":"password123"}' | jq .
+
+# Extract the token using jq
+TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@test.com","password":"password123"}' | jq -r '.token')
 
 # List users (authenticated)
 curl http://localhost:3000/users/cursor \
   -H "Authorization: Bearer $TOKEN"
 
-# Get current user profile
+# Get user by ID
 curl http://localhost:3000/users/<id> \
   -H "Authorization: Bearer $TOKEN"
 ```

@@ -1,6 +1,7 @@
 /target
 .env
-*.swp
+.sqlx
 .idea/
+*.swp
 ROADMAP.private.md
 

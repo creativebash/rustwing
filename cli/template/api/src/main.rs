@@ -6,6 +6,7 @@ mod services;
 mod state;
 
 use rustwing::infrastructure::llm::build_client;
+use sqlx::migrate::MigrateError;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -29,10 +30,7 @@ async fn main() {
         .await
         .expect("Failed to connect to Postgres");
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run migrations");
+    run_migrations(&pool).await;
 
     let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
     let model = std::env::var("LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
@@ -53,4 +51,28 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     tracing::info!("Listening on http://localhost:{port}");
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn run_migrations(pool: &sqlx::PgPool) {
+    match sqlx::migrate!("./migrations").run(pool).await {
+        Ok(_) => {}
+        Err(MigrateError::VersionMissing(version)) => {
+            tracing::warn!(
+                "Migration version {} was applied but file not found. Removing stale tracking entry.",
+                version
+            );
+            sqlx::query("DELETE FROM _sqlx_migrations WHERE version = $1")
+                .bind(version as i64)
+                .execute(pool)
+                .await
+                .expect("Failed to clean stale migration entry");
+            sqlx::migrate!("./migrations")
+                .run(pool)
+                .await
+                .expect("Failed to run migrations after cleanup");
+        }
+        Err(e) => {
+            panic!("Failed to run migrations: {}", e);
+        }
+    }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "rustwing-cli"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 description = "Rustwing CLI — scaffold, generate, and manage Rustwing projects"
 license = "MIT"
@@ -12,6 +12,10 @@ categories = ["development-tools", "command-line-utilities"]
 [[bin]]
 name = "rustwing"
 path = "src/main.rs"
+
+[[bin]]
+name = "gen-template"
+path = "src/bin/gen_template.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

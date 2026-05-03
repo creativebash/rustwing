@@ -67,6 +67,83 @@ cd .. && rm -rf test_project
 
 For database-dependent testing, point `DATABASE_URL` at a local Postgres instance.
 
+## Local development (without publishing)
+
+You don't need to publish to crates.io to test changes. Here are several approaches:
+
+### Use the local CLI directly
+
+Run CLI commands from the workspace root without installing:
+
+```bash
+# Create a project
+cargo run --bin rustwing -- new my_test_app
+
+# Generate a resource (from within the project)
+cargo run --bin rustwing -- g resource post --fields 'title:string:required:length(1,255)'
+```
+
+### Install the local CLI over an existing one
+
+```bash
+# Install from local source (overwrites any published version)
+cargo install --path cli --force
+
+# Now `rustwing` uses your local changes
+rustwing new my_test_app
+```
+
+### Test framework changes in a generated project
+
+When you modify the `rustwing` crate, test it in a real project by overriding the dependency:
+
+```bash
+# Use --local to auto-patch the project to use your local rustwing checkout
+cargo run --bin rustwing -- new --local /path/to/rustwing/repo my_test_app
+cd my_test_app
+cargo check   # compiles against local rustwing
+```
+
+Or manually add a `[patch]` section to the project's workspace `Cargo.toml`:
+```toml
+[patch.crates-io]
+rustwing = { path = "/path/to/rustwing/repo/rustwing" }
+```
+
+### Test CLI template changes
+
+The template files in `cli/template/` are the source of truth. Edit them directly, then regenerate the embedded copy:
+
+```bash
+cd cli && cargo run --bin gen-template
+```
+
+Test your template changes:
+
+```bash
+# Verify the workspace still compiles
+cargo check
+
+# Create a test project and verify it compiles
+cargo run --bin rustwing -- new test_project
+cd test_project && cargo check
+cd .. && rm -rf test_project
+```
+
+### Full end-to-end local test (framework + CLI)
+
+```bash
+# 1. Make changes in rustwing/ or cli/
+# 2. Build the CLI
+cargo build --bin rustwing
+
+# 3. Create a test project with local framework path
+./target/debug/rustwing new --local "$(pwd)/rustwing" test_e2e
+
+# 4. Test it compiles and works
+cd test_e2e && cargo check && cd ..
+```
+
 ## Pull requests
 
 - Keep changes focused. One PR = one concern.

@@ -22,6 +22,9 @@ enum Commands {
     New {
         /// Project name
         name: String,
+        /// Path to local rustwing checkout for development (uses path dependency instead of crates.io)
+        #[arg(long)]
+        local: Option<String>,
     },
     /// Run the API server (cargo run --bin api)
     Run,
@@ -41,7 +44,7 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::New { name } => new::run(&name),
+        Commands::New { name, local } => new::run(&name, local.as_deref()),
         Commands::Run => run(),
         Commands::Generate { r#type, name, fields } => generate::run(&r#type, &name, &fields),
     }

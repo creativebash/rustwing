@@ -147,6 +147,15 @@ pub fn run(gen_type: &str, name: &str, field_args: &[String]) {
             std::process::exit(1);
         });
 
+    let prefix = project_prefix();
+    let s = |path: &str| -> String {
+        prefix.join(path).to_string_lossy().to_string()
+    };
+    let m_dir = migrations_dir();
+
+    let domain_path = s(&format!("src/domain/{}.rs", model_lower));
+    let domain_exists = Path::new(&domain_path).exists();
+
     println!(
         "🚀 Generating {} '{}' with {} field(s)...\n",
         gen_type,
@@ -159,16 +168,13 @@ pub fn run(gen_type: &str, name: &str, field_args: &[String]) {
         println!("   Example: --fields 'title:string:required:length(1,255)'\n");
     }
 
-    let prefix = project_prefix();
-    let s = |path: &str| -> String {
-        prefix.join(path).to_string_lossy().to_string()
-    };
-    let m_dir = migrations_dir();
+    if domain_exists {
+        println!("   ⚠️  Model '{}' already exists — skipping file and migration creation.\n", model_camel);
+        println!("✅ Done!");
+        return;
+    }
 
-    create_file(
-        &s(&format!("src/domain/{}.rs", model_lower)),
-        &domain_template(&model_camel, &fields),
-    );
+    create_file(&domain_path, &domain_template(&model_camel, &fields));
     create_file(
         &s(&format!("src/repository/{}_repo.rs", model_lower)),
         &repo_template(&model_camel, &model_lower, &table_name, gen_type, &fields),
@@ -204,7 +210,7 @@ pub fn run(gen_type: &str, name: &str, field_args: &[String]) {
     println!();
     println!("📝 Next steps:");
     println!("   1. Run `cargo check`");
-    println!("   2. Run `sqlx migrate run`");
+    println!("   2. Run `rustwing run` (or `cargo run --bin api`) — migrations auto-run on startup");
     if gen_type == "resource" {
         println!("   3. Try: curl -X POST http://localhost:3000/{}", table_name);
     }

@@ -15,6 +15,7 @@ use crate::{
 };
 use rustwing::prelude::*;
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct Pagination {
     pub limit: Option<i64>,
