@@ -32,7 +32,7 @@ enum Commands {
         r#type: String,
         /// Name of the resource (e.g. post, product)
         name: String,
-        /// Tenant scope column for SaaS resources, e.g. organization_id
+        /// Tenant scope column for SaaS resources, e.g. org_id
         #[arg(long)]
         tenant: Option<String>,
         /// Parent/scope column for nested SQLx helpers and routes, e.g. ticket_id

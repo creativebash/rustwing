@@ -85,23 +85,30 @@ You don't need to publish to crates.io to test changes. Here are several approac
 
 ### Use the local CLI directly
 
-Run CLI commands from the workspace root without installing:
+Run `rustwing new` from the workspace root without installing:
 
 ```bash
 # Create a project
 cargo run --bin rustwing -- new my_test_app
+```
+
+Run `rustwing g ...` from the generated project root. If you have not installed the local CLI, point Cargo at this repository's manifest:
+
+```bash
+cd my_test_app
 
 # Generate a single-tenant, service-first resource (from within the project)
-cargo run --bin rustwing -- g resource post --fields 'title:string:required:length(1,255)'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post \
+  --fields 'title:string:required:length(1,255)'
 
 # Generate a tenant-scoped SaaS resource with explicit SQLx repository helpers
-cargo run --bin rustwing -- g resource ticket \
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket \
   --tenant org_id \
   --fields 'org_id:uuid:required' \
   --fields 'subject:string:required:length(1,255)'
 
 # Generate a parent-scoped resource
-cargo run --bin rustwing -- g resource comment \
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment \
   --scope ticket_id \
   --fields 'ticket_id:uuid:required' \
   --fields 'body:string:required'
@@ -115,6 +122,8 @@ cargo install --path cli --force
 
 # Now `rustwing` uses your local changes
 rustwing new my_test_app
+cd my_test_app
+rustwing g resource post --fields 'title:string:required'
 ```
 
 ### Test framework changes in a generated project
@@ -168,8 +177,15 @@ cargo build --bin rustwing
 # 3. Create a test project with local framework path
 ./target/debug/rustwing new test_e2e --local "$(pwd)"
 
-# 4. Test it compiles and works
-cd test_e2e && cargo check && cd ..
+# 4. Generate representative resources from inside the project
+cd test_e2e
+../target/debug/rustwing g resource post --fields 'title:string:required'
+../target/debug/rustwing g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
+../target/debug/rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
+
+# 5. Test it compiles
+cargo check
+cd ..
 ```
 
 ## Pull requests
