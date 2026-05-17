@@ -22,11 +22,16 @@ fn main() {
     out.push_str("];\n");
 
     fs::write("src/template_data.rs", &out).expect("Failed to write src/template_data.rs");
-    println!("Generated {} template entries in src/template_data.rs", entries.len());
+    println!(
+        "Generated {} template entries in src/template_data.rs",
+        entries.len()
+    );
 }
 
 fn collect_files(base: &Path, dir: &Path, entries: &mut Vec<(String, String)>) {
-    let Ok(read_dir) = fs::read_dir(dir) else { return };
+    let Ok(read_dir) = fs::read_dir(dir) else {
+        return;
+    };
     let mut dirs: Vec<_> = Vec::new();
     let mut files: Vec<_> = Vec::new();
 
@@ -43,7 +48,11 @@ fn collect_files(base: &Path, dir: &Path, entries: &mut Vec<(String, String)>) {
     files.sort();
 
     for path in &files {
-        let rel = path.strip_prefix(base).unwrap().to_string_lossy().to_string();
+        let rel = path
+            .strip_prefix(base)
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         let content = fs::read_to_string(path).unwrap();
         entries.push((rel, content));
     }

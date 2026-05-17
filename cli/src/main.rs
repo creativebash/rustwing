@@ -7,10 +7,7 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Parser)]
-#[command(
-    name = "rustwing",
-    about = "Rustwing CLI",
-)]
+#[command(name = "rustwing", about = "Rustwing CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -35,6 +32,12 @@ enum Commands {
         r#type: String,
         /// Name of the resource (e.g. post, product)
         name: String,
+        /// Tenant scope column for SaaS resources, e.g. organization_id
+        #[arg(long)]
+        tenant: Option<String>,
+        /// Parent/scope column for nested SQLx helpers and routes, e.g. ticket_id
+        #[arg(long = "scope", num_args = 1)]
+        scopes: Vec<String>,
         /// Fields in format: name:type:required|optional[:validator]
         #[arg(long = "fields", num_args = 1)]
         fields: Vec<String>,
@@ -46,7 +49,13 @@ fn main() {
     match cli.command {
         Commands::New { name, local } => new::run(&name, local.as_deref()),
         Commands::Run => run(),
-        Commands::Generate { r#type, name, fields } => generate::run(&r#type, &name, &fields),
+        Commands::Generate {
+            r#type,
+            name,
+            tenant,
+            scopes,
+            fields,
+        } => generate::run(&r#type, &name, &fields, tenant.as_deref(), &scopes),
     }
 }
 

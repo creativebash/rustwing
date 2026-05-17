@@ -63,6 +63,10 @@ impl Llm for StubClient {
 // ==========================================
 pub fn build_client(provider: &str, model: &str) -> LlmRef {
     match provider.to_lowercase().as_str() {
+        "stub" => {
+            tracing::info!("Initializing Stub LLM");
+            Arc::new(StubClient)
+        }
         "deepseek" => {
             tracing::info!("Initializing DeepSeek LLM (Model: {})", model);
             // from_env() reads DEEPSEEK_API_KEY automatically

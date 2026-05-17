@@ -31,12 +31,14 @@ This is a Rustwing SaaS project. Below is the context you need to understand its
 │   │   │       ├── auth_routes.rs  # POST /auth/register, POST /auth/login
 │   │   │       ├── user_routes.rs  # User CRUD + cursor pagination
 │   │   │       └── ...         # Generated resource handlers go here
-│   │   └── services/           # Business logic (call repos from here)
-│   │       └── mod.rs
+│   │   └── services/           # Business logic, validation, tenant scope, orchestration
+│   │       ├── mod.rs
+│   │       ├── user_service.rs
+│   │       └── ...             # Generated resource services go here
 │   └── migrations/             # SQL migration files (auto-run on startup)
 │       ├── 00000000000000_create_trigger_function.sql
 │       └── ...
-├── worker/                     # Background job worker
+├── worker/                     # Background job worker with DB pool, LLM client, tick loop
 └── frontend/                   # Your frontend (BYO)
 ```
 
@@ -56,12 +58,45 @@ rustwing g resource product \
   --fields 'price:f64:required:range(0.0,9999.0)'
 ```
 
-This generates: domain model, DTOs (Create/Update/Response), repository impl, route handlers (list/create/get/update/delete with pagination), router injection, and a database migration — all following the project's conventions.
+This generates: domain model, DTOs (Create/Update/Response), service module, repository impl, route handlers (list/create/get/update/delete with pagination), router injection, and a database migration — all following the project's conventions.
+
+For resources scoped to a parent record, use `--scope` explicitly:
+
+```
+rustwing g resource comment \
+  --scope ticket_id \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+This generates nested routes like `/tickets/{ticket_id}/comments`. The scope field must be present in `--fields`, must be required, and must be `uuid` or `ref`. Create/update request bodies do not include scope fields; handlers take them from the route path and pass them into the service.
+
+For SaaS tenant scope, use `--tenant`, which behaves like a first `--scope`:
+
+```
+rustwing g resource ticket \
+  --tenant organization_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'subject:string:required:length(1,255)'
+```
+
+Scopes can be combined:
+
+```
+rustwing g resource note \
+  --tenant organization_id \
+  --scope ticket_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+This generates routes like `/organizations/{organization_id}/tickets/{ticket_id}/notes` and SQLx helpers such as `find_by_organization_id_and_ticket_id`.
 
 For data-only models without HTTP endpoints:
 
 ```
-rustwing g model tag name:string:required
+rustwing g model tag --fields 'name:string:required'
 ```
 
 ### Auth pattern
@@ -74,15 +109,55 @@ rustwing g model tag name:string:required
 ### CRUD layer
 
 ```
-DTO (Create/Update) → Handler → Repository (Insertable/Updateable traits) → DB
-Domain model (FromRow) ← Handler ← Repository (generic_crud functions) ← DB
+DTO (Create/Update) → Handler → Service → Repository/generic_crud → DB
+Domain model (FromRow) ← Handler ← Service ← Repository/generic_crud ← DB
 ```
 
 - **Domain models**: `#[derive(Debug, Serialize, FromRow, Clone)]` — always include `id: Uuid`, `created_at: DateTime<Utc>`, `updated_at: DateTime<Utc>`.
 - **Repositories**: Implement `ModelName` trait (just `table_name()`). For resources, also implement `Insertable` and `Updateable` traits.
 - **DTOs**: Three types per resource — `Create{Name}` (with validation), `Update{Name}` (all optional), `{Name}Response` (with `From<{Name}>` impl).
-- **Handlers**: Standard CRUD + cursor pagination. Pagination types (`Pagination`, `CursorPagination`) are imported from `user_routes`.
+- **Services**: Own validation, pagination normalization, tenant scope, side effects, LLM calls, and orchestration.
+- **Handlers**: Standard CRUD + cursor pagination. Keep handlers thin; they should extract request data and call services.
 - **generic_crud**: `find_all`, `find_after`, `find_by_id`, `insert`, `update`, `delete` — imported from `rustwing::prelude::*`.
+
+### Nullable PATCH fields
+
+Use normal `Option<T>` update fields when `None` means "do not change". For nullable columns that clients must be able to clear, use `Nullable<T>` from `rustwing::prelude::*`:
+
+```rust
+#[derive(Deserialize)]
+pub struct UpdateTicket {
+    #[serde(default)]
+    pub assigned_member_id: Nullable<Uuid>,
+}
+```
+
+Interpret it as:
+- `Nullable::Missing` — do not update this column
+- `Nullable::Null` — write SQL `NULL`
+- `Nullable::Value(value)` — write the provided value
+
+In `Updateable`, bind `Nullable::Null` with a typed `None`:
+
+```rust
+match &self.assigned_member_id {
+    Nullable::Missing => {}
+    Nullable::Null => {
+        separated.push("assigned_member_id = ").push_bind_unseparated(Option::<Uuid>::None);
+    }
+    Nullable::Value(id) => {
+        separated.push("assigned_member_id = ").push_bind_unseparated(id);
+    }
+}
+```
+
+This is intentionally opt-in because not every optional database column needs clear-via-PATCH semantics.
+
+### Worker pattern
+
+The generated `worker` binary is executable, not just a placeholder. It loads `.env`, configures tracing, connects to Postgres, builds the configured LLM client, creates `WorkerState { db, llm }`, and runs `process_pending_jobs()` on an interval controlled by `WORKER_TICK_SECONDS`.
+
+Put polling, queues, AI enrichment, and other background workflows in worker services/functions called from `process_pending_jobs()`.
 
 ### Migrations
 
@@ -103,7 +178,10 @@ Domain model (FromRow) ← Handler ← Repository (generic_crud functions) ← D
 ```bash
 cargo check                              # Verify compilation
 cargo run --bin api                      # Start the API server (migrations auto-run)
+cargo run --bin worker                   # Start the background worker tick loop
 rustwing g resource <name> --fields ...  # Generate a full REST resource
+rustwing g resource ticket --tenant organization_id --fields 'organization_id:uuid:required' --fields 'subject:string:required'
+rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 rustwing g model <name> ...              # Generate a data-only model
 ```
 
@@ -112,9 +190,10 @@ rustwing g model <name> ...              # Generate a data-only model
 1. Create domain model in `api/src/domain/<name>.rs` and add `pub mod` to `mod.rs`
 2. Create repository in `api/src/repository/<name>_repo.rs` with `ModelName` impl
 3. Create DTOs in `api/src/http/dtos/<name>_dto.rs`
-4. Create handlers in `api/src/http/handlers/<name>_routes.rs`
-5. Register routes in `api/src/http/mod.rs`
-6. Create migration SQL file in `api/migrations/`
+4. Create service functions in `api/src/services/<name>_service.rs`
+5. Create handlers in `api/src/http/handlers/<name>_routes.rs`
+6. Register routes in `api/src/http/mod.rs`
+7. Create migration SQL file in `api/migrations/`
 
 ## Framework reference
 

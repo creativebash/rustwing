@@ -41,3 +41,11 @@ Examples:
 - `info` — info and above for all crates
 - `info,api=debug` — debug for your app, info for dependencies
 - `trace` — everything (very verbose)
+
+## Worker
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `WORKER_TICK_SECONDS` | No | `10` | Seconds between worker processing ticks |
+
+The worker uses the same `DATABASE_URL`, `LLM_PROVIDER`, `LLM_MODEL`, and provider API keys as the API binary.

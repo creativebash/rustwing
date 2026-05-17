@@ -15,11 +15,12 @@ Rustwing is a batteries-included application framework that helps you build prod
 ## What you get
 
 - **Auth** — Argon2 password hashing + JWT tokens out of the box
-- **CRUD scaffolding** — Generate full REST endpoints without writing SQL
+- **Service-first CRUD scaffolding** — Generate REST endpoints, services, repositories, and migrations
+- **Scoped resources** — Opt into SaaS-style or parent-child routes and SQLx helpers with `--tenant` or `--scope`
 - **Migrations** — Automatic database migrations on run
-- **Background workers** — Built-in structure for async job processing
+- **Background workers** — Wired worker binary with DB pool, LLM client, and tick loop
 - **LLM hooks** — Pluggable AI integrations (DeepSeek, local stubs)
-- **Scaffolding CLI** — Generate resources, models, handlers, and routes instantly
+- **Scaffolding CLI** — Generate resources, models, services, repositories, handlers, and routes instantly
 - **Error handling** — Clean mapping of database and application errors
 
 ## Quick start
@@ -37,6 +38,7 @@ Rustwing is not a replacement for Axum — it builds on top of it.
 
 - **Axum handles HTTP**
 - **Rustwing handles your application**
+- **SQLx keeps SQL explicit**
 
 It provides a structured, batteries-included starting point for building real-world Rust apps, especially SaaS-style backends.
 
@@ -63,10 +65,36 @@ rustwing g resource product \
 This generates:
 - Domain model (`Product`)
 - Request/response DTOs with validation
-- Repository glue (zero-SQL CRUD via traits)
+- Service functions that own validation, pagination limits, and business logic
+- SQLx-native repository glue and explicit CRUD behavior
 - Route handlers with offset and cursor pagination
 - Router registration
 - Database migration
+
+## Generate a scoped resource
+
+For SaaS and parent-child resources, keep single-tenant CRUD as the default and opt into scoped generation explicitly:
+
+```bash
+rustwing g resource ticket \
+  --tenant organization_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'subject:string:required:length(1,255)' \
+  --fields 'assigned_member_id:uuid:optional'
+```
+
+This generates nested routes like `/organizations/{organization_id}/tickets`, plus scoped repository helpers such as `find_by_organization_id`, `update_by_organization_id_and_id`, and `delete_by_organization_id_and_id`.
+
+Scopes are not limited to tenants:
+
+```bash
+rustwing g resource comment \
+  --scope ticket_id \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+This generates routes like `/tickets/{ticket_id}/comments`. You can combine scopes, for example `--tenant organization_id --scope ticket_id`, to generate routes like `/organizations/{organization_id}/tickets/{ticket_id}/comments`.
 
 ## Project structure
 
@@ -78,10 +106,10 @@ my_app/
 │   │   ├── http/               # Routes, handlers, DTOs
 │   │   │   ├── dtos/           # Request/response types
 │   │   │   └── handlers/       # Route handlers
-│   │   ├── repository/         # DB trait implementations
-│   │   └── services/           # Business logic
+│   │   ├── repository/         # SQLx-native database access
+│   │   └── services/           # Business logic and orchestration
 │   └── migrations/             # SQL migrations (auto-run)
-├── worker/                     # Background job worker
+├── worker/                     # DB/LLM-backed worker tick loop
 └── frontend/                   # (coming soon)
 ```
 
@@ -94,13 +122,15 @@ my_app/
 | `LLM_PROVIDER` | No | `stub` | AI provider (`stub`, `deepseek`) |
 | `LLM_MODEL` | No | `deepseek-chat` | Model name for the provider |
 | `RUST_LOG` | No | `info,api=debug` | Log level |
+| `WORKER_TICK_SECONDS` | No | `10` | Worker polling interval |
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's coming — background jobs, frontend SDK generation, billing integration, and more.
+See [ROADMAP.md](ROADMAP.md) for what's coming — job queues, frontend SDK generation, billing integration, and more.
 
 ## Documentation
 
+- [Manifesto](MANIFESTO.md)
 - [Getting started](docs/getting-started.md)
 - [CLI reference](docs/cli-reference.md)
 - [Architecture guide](docs/architecture.md)

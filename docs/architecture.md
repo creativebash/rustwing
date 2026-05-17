@@ -10,6 +10,7 @@ Brings in the most common framework items:
 - `CoreError` — error types
 - `AuthEngine` — password hashing and JWT
 - `LlmRef`, `LlmRequest`, `LlmResponse` — LLM types
+- `Nullable` — PATCH helper for missing/null/value update fields
 - `generic_crud` — CRUD functions module
 - `ModelName`, `Insertable`, `Updateable`, `UpdateResult` — repository traits
 
@@ -21,7 +22,7 @@ Brings in the most common framework items:
 │  routes → handlers (AuthUser) → DTOs        │
 ├─────────────────────────────────────────────┤
 │             Service Layer                    │
-│  business logic, AI calls, orchestration     │
+│  validation, tenant scope, AI calls          │
 ├─────────────────────────────────────────────┤
 │            Repository Layer                  │
 │  trait impls (ModelName, Insertable, etc.)   │
@@ -114,6 +115,60 @@ pub async fn get_profile(
 
 Public routes (like `register` and `login`) omit the `AuthUser` parameter.
 
+## Services
+
+Generated resources use a service-first flow:
+
+```
+Handler → service → repository/generic_crud → database
+```
+
+Handlers should stay thin: extract auth, route params, query params, and JSON, then call a service. Services own validation, pagination normalization, tenant scoping, side effects, LLM calls, and orchestration.
+
+For a normal single-tenant resource, generated services call `generic_crud` directly. For scoped resources, generated services call scoped SQLx repository helpers.
+
+## Scoped Resources
+
+Single-tenant CRUD is the default. Resources can opt into route and SQL scope with `--scope`:
+
+```bash
+rustwing g resource comment \
+  --scope ticket_id \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+This generates nested routes like `/tickets/{ticket_id}/comments`. Scope fields come from the route path, not the request body.
+
+`--tenant` is a convenience alias for the common SaaS tenant scope:
+
+```bash
+rustwing g resource ticket \
+  --tenant organization_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'subject:string:required'
+```
+
+Scope fields must be required `uuid` or `ref` fields. Scopes can be repeated:
+
+```bash
+rustwing g resource note \
+  --tenant organization_id \
+  --scope ticket_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+This generates routes like:
+
+```
+/organizations/{organization_id}/tickets/{ticket_id}/notes
+/organizations/{organization_id}/tickets/{ticket_id}/notes/{id}
+```
+
+Generated repository helpers include scope filters on list, get, update, and delete operations, for example `find_by_organization_id_and_ticket_id` and `delete_by_organization_id_and_ticket_id_and_id`.
+
 ## Error handling
 
 Errors flow through a consistent chain:
@@ -130,6 +185,39 @@ PostgreSQL error codes are mapped:
 - `23503` (foreign key violation) → `409 Conflict`
 - All others → `500 Internal Server Error`
 
+## Nullable PATCH Fields
+
+Plain `Option<T>` update fields are fine when `None` means "do not change". For nullable columns where clients must be able to clear a value, use `Nullable<T>`:
+
+```rust
+#[derive(Deserialize)]
+pub struct UpdateTicket {
+    #[serde(default)]
+    pub assigned_member_id: Nullable<Uuid>,
+}
+```
+
+Interpretation:
+- `Nullable::Missing` — field absent, do not update
+- `Nullable::Null` — JSON `null`, write SQL `NULL`
+- `Nullable::Value(value)` — write the provided value
+
+In `Updateable`, bind `Nullable::Null` with a typed `None`:
+
+```rust
+match &self.assigned_member_id {
+    Nullable::Missing => {}
+    Nullable::Null => {
+        separated.push("assigned_member_id = ").push_bind_unseparated(Option::<Uuid>::None);
+    }
+    Nullable::Value(id) => {
+        separated.push("assigned_member_id = ").push_bind_unseparated(id);
+    }
+}
+```
+
+This pattern is intentionally explicit because not every optional database column needs clear-via-PATCH behavior.
+
 ## LLM integration
 
 The LLM system uses a trait-based abstraction:
@@ -145,5 +233,11 @@ Built-in implementations:
 - `Stub` — local development, returns canned responses
 
 Configure via environment variables:
-- `LLM_PROVIDER` — `"deepseek"` or `"stub"`
+- `LLM_PROVIDER` — `"stub"` or `"deepseek"`
 - `LLM_MODEL` — model name (e.g. `"deepseek-chat"`)
+
+## Worker
+
+Generated projects include a `worker` binary with dotenv and tracing setup, `PgPool`, `LlmRef`, `WorkerState`, and a configurable tick loop via `WORKER_TICK_SECONDS`.
+
+The default `process_pending_jobs` function is intentionally empty, but executable. Add polling, queue processing, or background AI workflows there.

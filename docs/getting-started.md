@@ -25,10 +25,10 @@ my_saas/
 │   │   ├── main.rs
 │   │   ├── domain/user.rs  # User model
 │   │   ├── http/           # routes, handlers, DTOs
-│   │   ├── repository/     # DB glue
-│   │   └── services/       # business logic
+│   │   ├── repository/     # SQLx-native database access
+│   │   └── services/       # business logic and orchestration
 │   └── migrations/         # auto-run on startup
-├── worker/                 # background job worker
+├── worker/                 # DB/LLM-backed worker tick loop
 └── frontend/               # your frontend (BYO)
 ```
 
@@ -97,7 +97,8 @@ rustwing g resource post \
 This creates:
 - Domain model (`Post`)
 - Create/Update DTOs with validation
-- Repository glue (zero-SQL CRUD)
+- Service module for validation, pagination limits, and business logic
+- SQLx-native repository glue and explicit CRUD behavior
 - Route handlers with offset and cursor pagination
 - Router registration
 - Database migration
@@ -109,6 +110,50 @@ curl -X POST http://localhost:3000/posts \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Hello World","body":"My first post!"}'
 ```
+
+## Generate a scoped resource
+
+For SaaS data, opt into tenant scope explicitly:
+
+```bash
+rustwing g resource ticket \
+  --tenant organization_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'subject:string:required:length(1,255)' \
+  --fields 'assigned_member_id:uuid:optional'
+```
+
+This generates routes like `/organizations/{organization_id}/tickets`. The tenant ID comes from the path, so create/update request bodies do not include `organization_id`.
+
+Scopes also work for parent-child resources:
+
+```bash
+rustwing g resource comment \
+  --scope ticket_id \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+This generates routes like `/tickets/{ticket_id}/comments`. Combine scopes when a resource needs both tenant and parent boundaries:
+
+```bash
+rustwing g resource note \
+  --tenant organization_id \
+  --scope ticket_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
+```
+
+## Run the worker
+
+The generated worker connects to the same database, builds the configured LLM client, and runs a tick loop:
+
+```bash
+cargo run --bin worker
+```
+
+Set `WORKER_TICK_SECONDS` to change the polling interval.
 
 ## Next steps
 

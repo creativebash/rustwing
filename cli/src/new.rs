@@ -39,7 +39,11 @@ pub fn run(project_name: &str, local_framework: Option<&str>) {
             .open(&cargo_path)
             .unwrap_or_else(|e| panic!("Failed to open {}: {}", cargo_path.display(), e));
         file.write_all(patch.as_bytes()).unwrap();
-        println!("   🔧 Patched: {} → local rustwing at {}", cargo_path.display(), framework_path.display());
+        println!(
+            "   🔧 Patched: {} → local rustwing at {}",
+            cargo_path.display(),
+            framework_path.display()
+        );
     }
 
     println!();

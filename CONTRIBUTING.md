@@ -15,23 +15,25 @@ cargo build
 ## Workspace layout
 
 ```
-rustwing/            # Framework library — published to crates.io
+rustwing/            # Framework library
 ├── src/
 │   ├── error.rs            # CoreError (Database, NotFound, Internal)
-│   ├── repository/         # Generic CRUD + traits (ModelName, Insertable, Updateable)
+│   ├── patch.rs            # Nullable<T> for PATCH missing/null/value semantics
+│   ├── repository/         # SQLx-native CRUD helpers + traits
 │   └── infrastructure/     # Auth (Argon2 + JWT), LLM (DeepSeek/Stub)
-api/                 # Development sample app — proves the framework compiles
-cli/                 # CLI binary — published as rustwing-cli
+cli/                 # CLI binary
 ├── src/
-│   ├── main.rs             # Subcommands: new, generate
+│   ├── main.rs             # Subcommands: new, generate, run
 │   ├── new.rs              # Copies template/ → project directory
-│   └── generate.rs         # Scaffolds resources: domain, DTOs, handlers, migration
+│   └── generate.rs         # Scaffolds resources: domain, DTOs, services, repos, handlers, migration
 └── template/        # What `rustwing new` generates (real compilable Rust files)
     ├── Cargo.toml          # Uses {{project_name}} placeholder
-    ├── api/src/            # Full API skeleton with auth + user CRUD
-    ├── worker/src/         # Background worker skeleton
+    ├── api/src/            # Full API starter with auth, services, repos, and user CRUD
+    ├── worker/src/         # DB/LLM-backed worker tick loop
     └── frontend/           # Placeholder directory
 ```
+
+Rustwing's direction is structure, scaffolding, and conventions, not hiding SQL. Generated repositories should stay SQLx-native and readable.
 
 ## Making changes
 
@@ -45,13 +47,19 @@ If your framework change affects generated code (new trait, changed signatures, 
 
 The template uses `{{project_name}}` as a placeholder that gets replaced when users run `rustwing new my_app`.
 
-### 3. Update the dev crate (`api/`)
-
-The `api/` crate is the dogfooding reference. It should stay in sync with the template. When you add a feature to the framework or template, mirror it here.
-
-### 4. Update the scaffold generator (`cli/src/generate.rs`)
+### 3. Update the scaffold generator (`cli/src/generate.rs`)
 
 If you add new framework features that should be scaffoldable (new resource types, new field types), update `generate.rs`. This handles `rustwing g resource ...`.
+
+Keep generation service-first: handlers extract request data, services own validation and orchestration, repositories own SQLx database access.
+
+### 4. Regenerate embedded template data
+
+After editing `cli/template/`, regenerate `cli/src/template_data.rs`:
+
+```bash
+cd cli && cargo run --bin gen-template
+```
 
 ## Testing
 
@@ -61,7 +69,11 @@ cargo check
 
 # Test the new command end-to-end
 cargo run --bin rustwing -- new test_project
-cd test_project && cargo check
+cd test_project
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant organization_id --fields 'organization_id:uuid:required' --fields 'subject:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
+cargo check
 cd .. && rm -rf test_project
 ```
 
@@ -79,8 +91,20 @@ Run CLI commands from the workspace root without installing:
 # Create a project
 cargo run --bin rustwing -- new my_test_app
 
-# Generate a resource (from within the project)
+# Generate a single-tenant, service-first resource (from within the project)
 cargo run --bin rustwing -- g resource post --fields 'title:string:required:length(1,255)'
+
+# Generate a tenant-scoped SaaS resource with explicit SQLx repository helpers
+cargo run --bin rustwing -- g resource ticket \
+  --tenant organization_id \
+  --fields 'organization_id:uuid:required' \
+  --fields 'subject:string:required:length(1,255)'
+
+# Generate a parent-scoped resource
+cargo run --bin rustwing -- g resource comment \
+  --scope ticket_id \
+  --fields 'ticket_id:uuid:required' \
+  --fields 'body:string:required'
 ```
 
 ### Install the local CLI over an existing one
@@ -99,7 +123,7 @@ When you modify the `rustwing` crate, test it in a real project by overriding th
 
 ```bash
 # Use --local to auto-patch the project to use your local rustwing checkout
-cargo run --bin rustwing -- new --local /path/to/rustwing/repo my_test_app
+cargo run --bin rustwing -- new my_test_app --local /path/to/rustwing/repo
 cd my_test_app
 cargo check   # compiles against local rustwing
 ```
@@ -126,7 +150,11 @@ cargo check
 
 # Create a test project and verify it compiles
 cargo run --bin rustwing -- new test_project
-cd test_project && cargo check
+cd test_project
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant organization_id --fields 'organization_id:uuid:required' --fields 'subject:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
+cargo check
 cd .. && rm -rf test_project
 ```
 
@@ -138,7 +166,7 @@ cd .. && rm -rf test_project
 cargo build --bin rustwing
 
 # 3. Create a test project with local framework path
-./target/debug/rustwing new --local "$(pwd)/rustwing" test_e2e
+./target/debug/rustwing new test_e2e --local "$(pwd)"
 
 # 4. Test it compiles and works
 cd test_e2e && cargo check && cd ..
@@ -149,6 +177,8 @@ cd test_e2e && cargo check && cd ..
 - Keep changes focused. One PR = one concern.
 - Update `cli/template/` if you change the framework API.
 - Update `cli/src/generate.rs` if you add scaffoldable features.
+- Keep repositories SQLx-native; do not add ORM-like abstractions or hidden query languages.
+- Keep generated handlers thin and services as the extension point for business logic.
 - Run `cargo check` before submitting.
 - The template pins `rustwing = "0.1"` in `api/Cargo.toml` — if you bump the framework version, update it there too.
 
