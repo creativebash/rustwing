@@ -117,13 +117,13 @@ For SaaS data, opt into tenant scope explicitly:
 
 ```bash
 rustwing g resource ticket \
-  --tenant organization_id \
-  --fields 'organization_id:uuid:required' \
+  --tenant org_id \
+  --fields 'org_id:uuid:required' \
   --fields 'subject:string:required:length(1,255)' \
   --fields 'assigned_member_id:uuid:optional'
 ```
 
-This generates routes like `/organizations/{organization_id}/tickets`. The tenant ID comes from the path, so create/update request bodies do not include `organization_id`.
+This generates routes like `/orgs/{org_id}/tickets`. The tenant ID comes from the path, so create/update request bodies do not include `org_id`.
 
 Scopes also work for parent-child resources:
 
@@ -138,9 +138,9 @@ This generates routes like `/tickets/{ticket_id}/comments`. Combine scopes when 
 
 ```bash
 rustwing g resource note \
-  --tenant organization_id \
+  --tenant org_id \
   --scope ticket_id \
-  --fields 'organization_id:uuid:required' \
+  --fields 'org_id:uuid:required' \
   --fields 'ticket_id:uuid:required' \
   --fields 'body:string:required'
 ```

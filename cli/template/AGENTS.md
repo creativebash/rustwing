@@ -75,8 +75,8 @@ For SaaS tenant scope, use `--tenant`, which behaves like a first `--scope`:
 
 ```
 rustwing g resource ticket \
-  --tenant organization_id \
-  --fields 'organization_id:uuid:required' \
+  --tenant org_id \
+  --fields 'org_id:uuid:required' \
   --fields 'subject:string:required:length(1,255)'
 ```
 
@@ -84,14 +84,14 @@ Scopes can be combined:
 
 ```
 rustwing g resource note \
-  --tenant organization_id \
+  --tenant org_id \
   --scope ticket_id \
-  --fields 'organization_id:uuid:required' \
+  --fields 'org_id:uuid:required' \
   --fields 'ticket_id:uuid:required' \
   --fields 'body:string:required'
 ```
 
-This generates routes like `/organizations/{organization_id}/tickets/{ticket_id}/notes` and SQLx helpers such as `find_by_organization_id_and_ticket_id`.
+This generates routes like `/orgs/{org_id}/tickets/{ticket_id}/notes` and SQLx helpers such as `find_by_org_id_and_ticket_id`.
 
 For data-only models without HTTP endpoints:
 
@@ -180,7 +180,7 @@ cargo check                              # Verify compilation
 cargo run --bin api                      # Start the API server (migrations auto-run)
 cargo run --bin worker                   # Start the background worker tick loop
 rustwing g resource <name> --fields ...  # Generate a full REST resource
-rustwing g resource ticket --tenant organization_id --fields 'organization_id:uuid:required' --fields 'subject:string:required'
+rustwing g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 rustwing g model <name> ...              # Generate a data-only model
 ```

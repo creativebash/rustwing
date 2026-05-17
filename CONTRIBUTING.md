@@ -71,7 +71,7 @@ cargo check
 cargo run --bin rustwing -- new test_project
 cd test_project
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
-cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant organization_id --fields 'organization_id:uuid:required' --fields 'subject:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 cargo check
 cd .. && rm -rf test_project
@@ -96,8 +96,8 @@ cargo run --bin rustwing -- g resource post --fields 'title:string:required:leng
 
 # Generate a tenant-scoped SaaS resource with explicit SQLx repository helpers
 cargo run --bin rustwing -- g resource ticket \
-  --tenant organization_id \
-  --fields 'organization_id:uuid:required' \
+  --tenant org_id \
+  --fields 'org_id:uuid:required' \
   --fields 'subject:string:required:length(1,255)'
 
 # Generate a parent-scoped resource
@@ -152,7 +152,7 @@ cargo check
 cargo run --bin rustwing -- new test_project
 cd test_project
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
-cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant organization_id --fields 'organization_id:uuid:required' --fields 'subject:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 cargo check
 cd .. && rm -rf test_project

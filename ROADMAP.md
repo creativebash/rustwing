@@ -5,7 +5,7 @@
 - [x] **Service-first generation** — generated resources now include `services/<name>_service.rs`; handlers call services instead of jumping straight to repositories.
 - [x] **Executable worker scaffold** — generated workers now wire `PgPool`, `LlmRef`, `WorkerState`, and a configurable tick loop.
 - [x] **Stub LLM provider polish** — `LLM_PROVIDER=stub` is a first-class provider and no longer logs an "unknown provider" warning.
-- [x] **Scoped resource generation** — `rustwing g resource ... --scope ticket_id` and `--tenant organization_id` generate nested routes and scoped SQLx repository helpers.
+- [x] **Scoped resource generation** — `rustwing g resource ... --scope ticket_id` and `--tenant org_id` generate nested routes and scoped SQLx repository helpers.
 - [x] **Nullable PATCH helper** — `Nullable<T>` documents and supports missing/null/value update semantics.
 - [ ] **Cursor pagination fix** — currently relies on UUID ordering (`WHERE id > $1`). Should use a dedicated `sort_order` column or `created_at` for predictable pagination.
 - [ ] **`password_hash` isolation** — `User` domain model includes `password_hash` via `FromRow`. One `UserResponse::from()` bug away from leaking hashes into API responses. Either exclude it from the response conversion or use a separate DB-only struct.

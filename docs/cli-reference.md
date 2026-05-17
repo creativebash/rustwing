@@ -55,14 +55,14 @@ Scopes can be repeated:
 
 ```bash
 rustwing g resource note \
-  --tenant organization_id \
+  --tenant org_id \
   --scope ticket_id \
-  --fields 'organization_id:uuid:required' \
+  --fields 'org_id:uuid:required' \
   --fields 'ticket_id:uuid:required' \
   --fields 'body:string:required'
 ```
 
-This generates routes like `/organizations/{organization_id}/tickets/{ticket_id}/notes` and helpers such as `find_by_organization_id_and_ticket_id`.
+This generates routes like `/orgs/{org_id}/tickets/{ticket_id}/notes` and helpers such as `find_by_org_id_and_ticket_id`.
 
 ### `--tenant <field>`
 
@@ -70,8 +70,8 @@ Use `--tenant` as a clearer alias for a SaaS tenant scope. It behaves like a fir
 
 ```bash
 rustwing g resource ticket \
-  --tenant organization_id \
-  --fields 'organization_id:uuid:required' \
+  --tenant org_id \
+  --fields 'org_id:uuid:required' \
   --fields 'subject:string:required:length(1,255)' \
   --fields 'assigned_member_id:uuid:optional'
 ```
@@ -79,10 +79,10 @@ rustwing g resource ticket \
 Normal single-tenant CRUD remains the default. Scoped mode is opt-in and each scope field must be present in `--fields`.
 
 Scoped mode generates:
-- Nested routes like `/organizations/{organization_id}/tickets`
+- Nested routes like `/orgs/{org_id}/tickets`
 - Create/update DTOs that do not accept scope fields from the request body
 - Service functions that receive scope IDs from the route
-- Scoped repository helpers such as `find_by_organization_id`, `find_by_organization_id_and_id`, `update_by_organization_id_and_id`, and `delete_by_organization_id_and_id`
+- Scoped repository helpers such as `find_by_org_id`, `find_by_org_id_and_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`
 
 ### `rustwing generate model <name>`
 

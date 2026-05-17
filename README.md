@@ -77,13 +77,13 @@ For SaaS and parent-child resources, keep single-tenant CRUD as the default and 
 
 ```bash
 rustwing g resource ticket \
-  --tenant organization_id \
-  --fields 'organization_id:uuid:required' \
+  --tenant org_id \
+  --fields 'org_id:uuid:required' \
   --fields 'subject:string:required:length(1,255)' \
   --fields 'assigned_member_id:uuid:optional'
 ```
 
-This generates nested routes like `/organizations/{organization_id}/tickets`, plus scoped repository helpers such as `find_by_organization_id`, `update_by_organization_id_and_id`, and `delete_by_organization_id_and_id`.
+This generates nested routes like `/orgs/{org_id}/tickets`, plus scoped repository helpers such as `find_by_org_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`.
 
 Scopes are not limited to tenants:
 
@@ -94,7 +94,7 @@ rustwing g resource comment \
   --fields 'body:string:required'
 ```
 
-This generates routes like `/tickets/{ticket_id}/comments`. You can combine scopes, for example `--tenant organization_id --scope ticket_id`, to generate routes like `/organizations/{organization_id}/tickets/{ticket_id}/comments`.
+This generates routes like `/tickets/{ticket_id}/comments`. You can combine scopes, for example `--tenant org_id --scope ticket_id`, to generate routes like `/orgs/{org_id}/tickets/{ticket_id}/comments`.
 
 ## Project structure
 

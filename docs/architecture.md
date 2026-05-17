@@ -144,8 +144,8 @@ This generates nested routes like `/tickets/{ticket_id}/comments`. Scope fields 
 
 ```bash
 rustwing g resource ticket \
-  --tenant organization_id \
-  --fields 'organization_id:uuid:required' \
+  --tenant org_id \
+  --fields 'org_id:uuid:required' \
   --fields 'subject:string:required'
 ```
 
@@ -153,9 +153,9 @@ Scope fields must be required `uuid` or `ref` fields. Scopes can be repeated:
 
 ```bash
 rustwing g resource note \
-  --tenant organization_id \
+  --tenant org_id \
   --scope ticket_id \
-  --fields 'organization_id:uuid:required' \
+  --fields 'org_id:uuid:required' \
   --fields 'ticket_id:uuid:required' \
   --fields 'body:string:required'
 ```
@@ -163,11 +163,11 @@ rustwing g resource note \
 This generates routes like:
 
 ```
-/organizations/{organization_id}/tickets/{ticket_id}/notes
-/organizations/{organization_id}/tickets/{ticket_id}/notes/{id}
+/orgs/{org_id}/tickets/{ticket_id}/notes
+/orgs/{org_id}/tickets/{ticket_id}/notes/{id}
 ```
 
-Generated repository helpers include scope filters on list, get, update, and delete operations, for example `find_by_organization_id_and_ticket_id` and `delete_by_organization_id_and_ticket_id_and_id`.
+Generated repository helpers include scope filters on list, get, update, and delete operations, for example `find_by_org_id_and_ticket_id` and `delete_by_org_id_and_ticket_id_and_id`.
 
 ## Error handling
 
