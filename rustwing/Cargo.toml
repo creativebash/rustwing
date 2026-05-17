@@ -1,6 +1,6 @@
 [package]
 name = "rustwing"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "The application framework for building Rust apps with Axum — auth, CRUD scaffolding, migrations, workers, and LLM hooks included."
 license = "MIT"

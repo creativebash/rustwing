@@ -10,7 +10,7 @@ const VERSION_INFO: &str = concat!(
     "CLI ",
     env!("CARGO_PKG_VERSION"),
     "\nrustwing framework ",
-    "0.1.2"
+    "0.1.3"
 );
 
 #[derive(Parser)]
