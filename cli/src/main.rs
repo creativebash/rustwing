@@ -6,8 +6,15 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 use std::process::Command;
 
+const VERSION_INFO: &str = concat!(
+    "CLI ",
+    env!("CARGO_PKG_VERSION"),
+    "\nrustwing framework ",
+    "0.1.2"
+);
+
 #[derive(Parser)]
-#[command(name = "rustwing", about = "Rustwing CLI")]
+#[command(name = "rustwing", about = "Rustwing CLI", version = VERSION_INFO)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
