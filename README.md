@@ -4,7 +4,7 @@
 
 **The application framework for building Rust apps with Axum.**
 
-Rustwing is a batteries-included application framework that helps you build production-ready Rust web apps faster. It provides structure, conventions, and ready-made features on top of Axum, so you can focus on your product instead of boilerplate.
+Rustwing is a batteries-included framework for developers who want to build production-ready Rust backends and APIs quickly—especially SaaS and AI-enabled applications. Built on top of Axum and SQLx, it provides strong conventions and structure so you can focus on your product instead of boilerplate. Its explicit patterns also make your codebase easy for coding agents to understand and extend.
 
 [![Crates.io](https://img.shields.io/crates/v/rustwing.svg)](https://crates.io/crates/rustwing)
 [![Crates.io](https://img.shields.io/crates/v/rustwing-cli.svg)](https://crates.io/crates/rustwing-cli)
@@ -63,6 +63,7 @@ rustwing g resource product \
 ```
 
 This generates:
+
 - Domain model (`Product`)
 - Request/response DTOs with validation
 - Service functions that own validation, pagination limits, and business logic
@@ -115,14 +116,14 @@ my_app/
 
 ## Configuration
 
-| Env var | Required | Default | Description |
-|---|---|---|---|
-| `DATABASE_URL` | Yes | — | Postgres connection string |
-| `JWT_SECRET` | No | dev-only fallback | Secret key for JWT tokens |
-| `LLM_PROVIDER` | No | `stub` | AI provider (`stub`, `deepseek`) |
-| `LLM_MODEL` | No | `deepseek-chat` | Model name for the provider |
-| `RUST_LOG` | No | `info,api=debug` | Log level |
-| `WORKER_TICK_SECONDS` | No | `10` | Worker polling interval |
+| Env var               | Required | Default           | Description                      |
+| --------------------- | -------- | ----------------- | -------------------------------- |
+| `DATABASE_URL`        | Yes      | —                 | Postgres connection string       |
+| `JWT_SECRET`          | No       | dev-only fallback | Secret key for JWT tokens        |
+| `LLM_PROVIDER`        | No       | `stub`            | AI provider (`stub`, `deepseek`) |
+| `LLM_MODEL`           | No       | `deepseek-chat`   | Model name for the provider      |
+| `RUST_LOG`            | No       | `info,api=debug`  | Log level                        |
+| `WORKER_TICK_SECONDS` | No       | `10`              | Worker polling interval          |
 
 ## Roadmap
 
