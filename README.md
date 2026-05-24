@@ -19,7 +19,7 @@ Rustwing is a batteries-included framework for developers who want to build prod
 - **Scoped resources** — Opt into SaaS-style or parent-child routes and SQLx helpers with `--tenant` or `--scope`
 - **Migrations** — Automatic database migrations on run
 - **Background workers** — Wired worker binary with DB pool, LLM client, and tick loop
-- **LLM hooks** — Pluggable AI integrations (DeepSeek, local stubs)
+- **LLM hooks** — Pluggable AI integrations (DeepSeek, OpenAI, Gemini, Anthropic, local stubs)
 - **Scaffolding CLI** — Generate resources, models, services, repositories, handlers, and routes instantly
 - **Error handling** — Clean mapping of database and application errors
 
@@ -116,14 +116,18 @@ my_app/
 
 ## Configuration
 
-| Env var               | Required | Default           | Description                      |
-| --------------------- | -------- | ----------------- | -------------------------------- |
-| `DATABASE_URL`        | Yes      | —                 | Postgres connection string       |
-| `JWT_SECRET`          | No       | dev-only fallback | Secret key for JWT tokens        |
-| `LLM_PROVIDER`        | No       | `stub`            | AI provider (`stub`, `deepseek`) |
-| `LLM_MODEL`           | No       | `deepseek-chat`   | Model name for the provider      |
-| `RUST_LOG`            | No       | `info,api=debug`  | Log level                        |
-| `WORKER_TICK_SECONDS` | No       | `10`              | Worker polling interval          |
+| Env var               | Required      | Default           | Description                                                       |
+| --------------------- | ------------- | ----------------- | ----------------------------------------------------------------- |
+| `DATABASE_URL`        | Yes           | —                 | Postgres connection string                                        |
+| `JWT_SECRET`          | No            | dev-only fallback | Secret key for JWT tokens                                         |
+| `LLM_PROVIDER`        | No            | `stub`            | AI provider (`stub`, `deepseek`, `openai`, `gemini`, `anthropic`) |
+| `LLM_MODEL`           | No            | provider default  | Model name for the selected provider                              |
+| `DEEPSEEK_API_KEY`    | For DeepSeek  | —                 | API key for DeepSeek                                              |
+| `OPENAI_API_KEY`      | For OpenAI    | —                 | API key for OpenAI                                                |
+| `GEMINI_API_KEY`      | For Gemini    | —                 | API key for Google Gemini                                         |
+| `ANTHROPIC_API_KEY`   | For Anthropic | —                 | API key for Anthropic                                             |
+| `RUST_LOG`            | No            | `info,api=debug`  | Log level                                                         |
+| `WORKER_TICK_SECONDS` | No            | `10`              | Worker polling interval                                           |
 
 ## Roadmap
 

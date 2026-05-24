@@ -1,4 +1,4 @@
-use rustwing::infrastructure::llm::build_client;
+use rustwing::infrastructure::llm::{build_client, default_model_for_provider};
 use rustwing::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
@@ -31,7 +31,8 @@ async fn main() {
         .expect("Failed to connect to Postgres");
 
     let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
-    let model = std::env::var("LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
+    let model = std::env::var("LLM_MODEL")
+        .unwrap_or_else(|_| default_model_for_provider(&provider).to_string());
     let llm = build_client(&provider, &model);
 
     let state = WorkerState { db: pool, llm };

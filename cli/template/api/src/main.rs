@@ -5,7 +5,7 @@ mod repository;
 mod services;
 mod state;
 
-use rustwing::infrastructure::llm::build_client;
+use rustwing::infrastructure::llm::{build_client, default_model_for_provider};
 use sqlx::migrate::MigrateError;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -33,7 +33,8 @@ async fn main() {
     run_migrations(&pool).await;
 
     let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
-    let model = std::env::var("LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
+    let model = std::env::var("LLM_MODEL")
+        .unwrap_or_else(|_| default_model_for_provider(&provider).to_string());
     let llm = build_client(&provider, &model);
 
     let jwt_secret = std::env::var("JWT_SECRET")

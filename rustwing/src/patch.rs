@@ -1,16 +1,11 @@
 use serde::{Deserialize, Deserializer};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Nullable<T> {
+    #[default]
     Missing,
     Null,
     Value(T),
-}
-
-impl<T> Default for Nullable<T> {
-    fn default() -> Self {
-        Self::Missing
-    }
 }
 
 impl<T> Nullable<T> {

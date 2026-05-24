@@ -22,12 +22,14 @@ In production, always set a strong, unique `JWT_SECRET`.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LLM_PROVIDER` | No | `stub` | Provider: `"stub"` or `"deepseek"` |
-| `LLM_MODEL` | No | `deepseek-chat` | Model name for the provider |
+| `LLM_PROVIDER` | No | `stub` | Provider: `"stub"`, `"deepseek"`, `"openai"`, `"gemini"`, or `"anthropic"` |
+| `LLM_MODEL` | No | provider default | Model name for the selected provider |
 | `DEEPSEEK_API_KEY` | For DeepSeek | — | API key from DeepSeek |
 | `OPENAI_API_KEY` | For OpenAI | — | API key from OpenAI |
+| `GEMINI_API_KEY` | For Gemini | — | API key from Google Gemini |
+| `ANTHROPIC_API_KEY` | For Anthropic | — | API key from Anthropic |
 
-Set `LLM_PROVIDER=stub` for local development — no API key needed. The stub logs prompts and returns canned responses.
+Set `LLM_PROVIDER=stub` for local development — no API key needed. The stub logs prompts and returns canned responses. If `LLM_MODEL` is unset, Rustwing picks a provider-specific default: `deepseek-chat`, `gpt-4o`, `gemini-2.5-flash`, or `claude-sonnet-4-6`.
 
 ## Logging
 

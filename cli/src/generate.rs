@@ -15,7 +15,7 @@ fn project_prefix() -> PathBuf {
 
 fn migrations_dir() -> PathBuf {
     let p = project_prefix();
-    if p == PathBuf::from(".") {
+    if p == Path::new(".") {
         PathBuf::from("migrations")
     } else {
         p.join("migrations")
@@ -501,6 +501,7 @@ fn create_file(path: &str, content: &str) {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(path)
         .unwrap_or_else(|e| panic!("Failed to create {}: {}", path, e));
     file.write_all(content.as_bytes()).unwrap();
@@ -1363,4 +1364,67 @@ fn normalize_offset(offset: Option<i64>) -> i64 {{
         Model = model,
         lower = lower,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_field_arguments_with_validation_hints() {
+        let field = Field::from_arg("title:string:required:length(1,255)").unwrap();
+
+        assert_eq!(field.name, "title");
+        assert_eq!(field.rust_field_type(), "String");
+        assert_eq!(field.sql_column_def().trim_start(), "title TEXT NOT NULL");
+        assert_eq!(
+            field.validator_attr(),
+            "#[validate(length(min = 1, max = 255))]"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_field_identifiers() {
+        let err = Field::from_arg("not-valid:string:required").unwrap_err();
+
+        assert!(err.contains("field name"));
+    }
+
+    #[test]
+    fn validates_required_uuid_scope_fields() {
+        let fields = vec![
+            Field::from_arg("org_id:uuid:required").unwrap(),
+            Field::from_arg("ticket_id:ref:required").unwrap(),
+            Field::from_arg("body:string:required").unwrap(),
+        ];
+
+        ScopeConfig::new("org_id", "tenant field")
+            .unwrap()
+            .validate_against(&fields)
+            .unwrap();
+        ScopeConfig::new("ticket_id", "scope field")
+            .unwrap()
+            .validate_against(&fields)
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_optional_scope_fields() {
+        let fields = vec![Field::from_arg("org_id:uuid:optional").unwrap()];
+
+        let err = ScopeConfig::new("org_id", "tenant field")
+            .unwrap()
+            .validate_against(&fields)
+            .unwrap_err();
+
+        assert!(err.contains("must be required"));
+    }
+
+    #[test]
+    fn builds_nested_route_prefix_for_multiple_scopes() {
+        let scope_args = vec!["ticket_id".to_string()];
+        let scopes = build_scopes(Some("org_id"), &scope_args).unwrap();
+
+        assert_eq!(route_prefix(&scopes), "/orgs/{org_id}/tickets/{ticket_id}");
+    }
 }

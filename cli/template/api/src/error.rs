@@ -46,6 +46,9 @@ impl IntoResponse for AppError {
             AppError::Core(CoreError::NotFound) => {
                 (StatusCode::NOT_FOUND, Json(json!({ "error": "Resource not found" }))).into_response()
             }
+            AppError::Core(CoreError::Unauthorized) => {
+                (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Unauthorized" }))).into_response()
+            }
             AppError::Core(CoreError::Internal(msg)) => {
                 tracing::error!("Internal error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Internal server error" }))).into_response()

@@ -229,12 +229,15 @@ pub trait Llm: Send + Sync {
 ```
 
 Built-in implementations:
-- `DeepSeek` — production, requires `DEEPSEEK_API_KEY`
+- `DeepSeek` — requires `DEEPSEEK_API_KEY`
+- `OpenAI` — requires `OPENAI_API_KEY`
+- `Gemini` — requires `GEMINI_API_KEY`
+- `Anthropic` — requires `ANTHROPIC_API_KEY`
 - `Stub` — local development, returns canned responses
 
 Configure via environment variables:
-- `LLM_PROVIDER` — `"stub"` or `"deepseek"`
-- `LLM_MODEL` — model name (e.g. `"deepseek-chat"`)
+- `LLM_PROVIDER` — `"stub"`, `"deepseek"`, `"openai"`, `"gemini"`, or `"anthropic"`
+- `LLM_MODEL` — optional model name override; if unset, Rustwing uses the selected provider's default model
 
 ## Worker
 

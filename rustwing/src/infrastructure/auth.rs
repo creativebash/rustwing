@@ -56,7 +56,7 @@ impl AuthEngine {
             &claims,
             &EncodingKey::from_secret(secret.as_bytes()),
         )
-        .map_err(|_| CoreError::NotFound) // Replace with better CoreError variant later
+        .map_err(|e| CoreError::Internal(format!("JWT encoding error: {}", e)))
     }
 
     /// Verifies a JWT and returns the User ID
@@ -66,8 +66,46 @@ impl AuthEngine {
             &DecodingKey::from_secret(secret.as_bytes()),
             &Validation::default(),
         )
-        .map_err(|_| CoreError::NotFound)?; // Returns 401 equivalent
+        .map_err(|_| CoreError::Unauthorized)?;
 
         Ok(token_data.claims.sub)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hashes_and_verifies_passwords() {
+        let hash = AuthEngine::hash_password("correct horse battery staple").unwrap();
+
+        assert!(AuthEngine::verify_password(
+            "correct horse battery staple",
+            &hash
+        ));
+        assert!(!AuthEngine::verify_password("wrong password", &hash));
+    }
+
+    #[test]
+    fn creates_and_verifies_jwt() {
+        let user_id = Uuid::now_v7();
+        let token = AuthEngine::create_jwt(user_id, "test-secret").unwrap();
+
+        assert_eq!(
+            AuthEngine::verify_jwt(&token, "test-secret").unwrap(),
+            user_id
+        );
+    }
+
+    #[test]
+    fn invalid_jwt_returns_unauthorized() {
+        let user_id = Uuid::now_v7();
+        let token = AuthEngine::create_jwt(user_id, "test-secret").unwrap();
+
+        assert!(matches!(
+            AuthEngine::verify_jwt(&token, "wrong-secret"),
+            Err(CoreError::Unauthorized)
+        ));
     }
 }

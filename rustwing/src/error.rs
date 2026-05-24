@@ -8,6 +8,9 @@ pub enum CoreError {
     #[error("Resource not found")]
     NotFound,
 
+    #[error("Unauthorized")]
+    Unauthorized,
+
     #[error("Internal error: {0}")]
     Internal(String),
 }

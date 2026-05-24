@@ -45,10 +45,10 @@ pub async fn login(
         .fetch_optional(&state.db)
         .await?;
 
-    let user = user.ok_or(AppError::Core(rustwing::error::CoreError::NotFound))?;
+    let user = user.ok_or(AppError::Core(CoreError::Unauthorized))?;
 
     if !AuthEngine::verify_password(&payload.password, &user.password_hash) {
-        return Err(AppError::Core(rustwing::error::CoreError::NotFound));
+        return Err(AppError::Core(CoreError::Unauthorized));
     }
 
     let token = AuthEngine::create_jwt(user.id, &state.jwt_secret)?;
