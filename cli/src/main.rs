@@ -6,11 +6,12 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 use std::process::Command;
 
+// When releasing: bump CLI_VERSION in cli/Cargo.toml, bump FRAMEWORK_VERSION below
 const VERSION_INFO: &str = concat!(
     "CLI ",
     env!("CARGO_PKG_VERSION"),
     "\nrustwing framework ",
-    "0.1.3"
+    "0.1.3",  // FRAMEWORK_VERSION — bump when rustwing/ releases
 );
 
 #[derive(Parser)]
