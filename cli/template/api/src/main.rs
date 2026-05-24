@@ -5,7 +5,7 @@ mod repository;
 mod services;
 mod state;
 
-use rustwing::infrastructure::llm::{build_client, default_model_for_provider};
+use rustwing::infrastructure::llm::{build_client_with_config, default_model_for_provider};
 use sqlx::migrate::MigrateError;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -35,7 +35,8 @@ async fn main() {
     let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
     let model = std::env::var("LLM_MODEL")
         .unwrap_or_else(|_| default_model_for_provider(&provider).to_string());
-    let llm = build_client(&provider, &model);
+    let max_tokens = std::env::var("LLM_MAX_TOKENS").ok().and_then(|v| v.parse().ok());
+    let llm = build_client_with_config(&provider, &model, max_tokens);
 
     let jwt_secret = std::env::var("JWT_SECRET")
         .unwrap_or_else(|_| "super_secret_dev_key_change_me".to_string());

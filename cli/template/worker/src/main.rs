@@ -1,4 +1,4 @@
-use rustwing::infrastructure::llm::{build_client, default_model_for_provider};
+use rustwing::infrastructure::llm::{build_client_with_config, default_model_for_provider};
 use rustwing::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
@@ -33,7 +33,8 @@ async fn main() {
     let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
     let model = std::env::var("LLM_MODEL")
         .unwrap_or_else(|_| default_model_for_provider(&provider).to_string());
-    let llm = build_client(&provider, &model);
+    let max_tokens = std::env::var("LLM_MAX_TOKENS").ok().and_then(|v| v.parse().ok());
+    let llm = build_client_with_config(&provider, &model, max_tokens);
 
     let state = WorkerState { db: pool, llm };
     let tick_seconds = std::env::var("WORKER_TICK_SECONDS")

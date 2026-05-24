@@ -126,6 +126,7 @@ my_app/
 | `OPENAI_API_KEY`      | For OpenAI    | —                 | API key for OpenAI                                                |
 | `GEMINI_API_KEY`      | For Gemini    | —                 | API key for Google Gemini                                         |
 | `ANTHROPIC_API_KEY`   | For Anthropic | —                 | API key for Anthropic                                             |
+| `LLM_MAX_TOKENS`      | No            | —                 | Default max output tokens; override per-request in code          |
 | `RUST_LOG`            | No            | `info,api=debug`  | Log level                                                         |
 | `WORKER_TICK_SECONDS` | No            | `10`              | Worker polling interval                                           |
 

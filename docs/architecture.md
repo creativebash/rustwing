@@ -226,6 +226,11 @@ The LLM system uses a trait-based abstraction:
 pub trait Llm: Send + Sync {
     async fn complete(&self, request: LlmRequest) -> Result<LlmResponse, CoreError>;
 }
+
+pub struct LlmRequest {
+    pub prompt: String,
+    pub max_tokens: Option<u32>,  // per-request override; None = use agent default
+}
 ```
 
 Built-in implementations:
@@ -238,6 +243,7 @@ Built-in implementations:
 Configure via environment variables:
 - `LLM_PROVIDER` — `"stub"`, `"deepseek"`, `"openai"`, `"gemini"`, or `"anthropic"`
 - `LLM_MODEL` — optional model name override; if unset, Rustwing uses the selected provider's default model
+- `LLM_MAX_TOKENS` — optional default max output tokens; set per-request via `LlmRequest.max_tokens`
 
 ## Worker
 

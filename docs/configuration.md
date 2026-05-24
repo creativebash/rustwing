@@ -28,8 +28,11 @@ In production, always set a strong, unique `JWT_SECRET`.
 | `OPENAI_API_KEY` | For OpenAI | — | API key from OpenAI |
 | `GEMINI_API_KEY` | For Gemini | — | API key from Google Gemini |
 | `ANTHROPIC_API_KEY` | For Anthropic | — | API key from Anthropic |
+| `LLM_MAX_TOKENS` | No | — | Default max output tokens (safety cap). Override per-request in code. |
 
 Set `LLM_PROVIDER=stub` for local development — no API key needed. The stub logs prompts and returns canned responses. If `LLM_MODEL` is unset, Rustwing picks a provider-specific default: `deepseek-chat`, `gpt-4o`, `gemini-2.5-flash`, or `claude-sonnet-4-6`.
+
+Per-request `max_tokens` override is supported in service code via `LlmRequest { prompt, max_tokens: Some(512) }`. When set, it takes precedence over the `LLM_MAX_TOKENS` env default.
 
 ## Logging
 

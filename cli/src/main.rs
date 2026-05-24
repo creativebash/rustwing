@@ -11,7 +11,7 @@ const VERSION_INFO: &str = concat!(
     "CLI ",
     env!("CARGO_PKG_VERSION"),
     "\nrustwing framework ",
-    "0.1.3",  // FRAMEWORK_VERSION — bump when rustwing/ releases
+    "0.1.5",  // FRAMEWORK_VERSION — bump when rustwing/ releases
 );
 
 #[derive(Parser)]

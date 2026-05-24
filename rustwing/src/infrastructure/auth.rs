@@ -43,7 +43,7 @@ impl AuthEngine {
     pub fn create_jwt(user_id: Uuid, secret: &str) -> Result<String, CoreError> {
         let expiration = Utc::now()
             .checked_add_signed(Duration::hours(24))
-            .expect("valid timestamp")
+            .ok_or_else(|| CoreError::Internal("timestamp overflow".into()))?
             .timestamp() as usize;
 
         let claims = Claims {
