@@ -20,5 +20,6 @@ pub fn app_router(state: AppState) -> Router {
                 .put(handlers::user_routes::update_user)
                 .delete(handlers::user_routes::delete_user),
         )
+        // rustwing:routes
         .with_state(state)
 }

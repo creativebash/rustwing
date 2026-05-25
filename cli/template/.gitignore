@@ -1,2 +1,11 @@
 /target
 .env
+.env.local
+.env.*.local
+.sqlx
+.idea/
+.vscode/
+.DS_Store
+*.swp
+/test_e2e
+/test_project

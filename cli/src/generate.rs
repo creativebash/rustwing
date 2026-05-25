@@ -2,14 +2,20 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+const ROUTE_MARKER: &str = "        // rustwing:routes";
+
+fn fail(message: impl std::fmt::Display) -> ! {
+    eprintln!("❌ {}", message);
+    std::process::exit(1);
+}
+
 fn project_prefix() -> PathBuf {
     if Path::new("api/src/domain/mod.rs").exists() {
         PathBuf::from("api")
     } else if Path::new("src/domain/mod.rs").exists() {
         PathBuf::from(".")
     } else {
-        eprintln!("❌ No src/ or api/src/ directory found. Run this from your project root.");
-        std::process::exit(1);
+        fail("No src/ or api/src/ directory found. Run this from your project root.");
     }
 }
 
@@ -344,17 +350,15 @@ pub fn run(
     scope_args: &[String],
 ) {
     if gen_type != "model" && gen_type != "resource" {
-        eprintln!(
-            "❌ Invalid type: '{}'. Must be 'model' or 'resource'.",
+        fail(format!(
+            "Invalid type: '{}'. Must be 'model' or 'resource'.",
             gen_type
-        );
-        std::process::exit(1);
+        ));
     }
 
     let model_lower = name.to_lowercase();
     if let Err(e) = validate_identifier(&model_lower, "resource name") {
-        eprintln!("❌ {}", e);
-        std::process::exit(1);
+        fail(e);
     }
 
     let model_camel = to_camel_case(&model_lower);
@@ -364,34 +368,42 @@ pub fn run(
         .iter()
         .map(|a| Field::from_arg(a))
         .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|e| {
-            eprintln!("❌ {}", e);
-            std::process::exit(1);
-        });
+        .unwrap_or_else(|e| fail(e));
 
-    let scopes = build_scopes(tenant, scope_args).unwrap_or_else(|e| {
-        eprintln!("❌ {}", e);
-        std::process::exit(1);
-    });
+    let scopes = build_scopes(tenant, scope_args).unwrap_or_else(|e| fail(e));
 
     if !scopes.is_empty() && gen_type != "resource" {
-        eprintln!("❌ --tenant and --scope are only supported for generated resources.");
-        std::process::exit(1);
+        fail("--tenant and --scope are only supported for generated resources.");
     }
 
     for scope in &scopes {
-        scope.validate_against(&fields).unwrap_or_else(|e| {
-            eprintln!("❌ {}", e);
-            std::process::exit(1);
-        });
+        scope.validate_against(&fields).unwrap_or_else(|e| fail(e));
     }
 
     let prefix = project_prefix();
-    let s = |path: &str| -> String { prefix.join(path).to_string_lossy().to_string() };
     let m_dir = migrations_dir();
 
-    let domain_path = s(&format!("src/domain/{}.rs", model_lower));
-    let domain_exists = Path::new(&domain_path).exists();
+    let domain_path = prefix.join(format!("src/domain/{}.rs", model_lower));
+    let repo_path = prefix.join(format!("src/repository/{}_repo.rs", model_lower));
+    let dto_path = prefix.join(format!("src/http/dtos/{}_dto.rs", model_lower));
+    let handler_path = prefix.join(format!("src/http/handlers/{}_routes.rs", model_lower));
+    let service_path = prefix.join(format!("src/services/{}_service.rs", model_lower));
+    let migration_path = m_dir.join(format!(
+        "{}_create_{}.sql",
+        next_migration_version(&m_dir),
+        table_name
+    ));
+    let mut update_targets = vec![
+        prefix.join("src/domain/mod.rs"),
+        prefix.join("src/repository/mod.rs"),
+    ];
+    if gen_type == "resource" {
+        update_targets.extend([
+            prefix.join("src/http/dtos/mod.rs"),
+            prefix.join("src/http/handlers/mod.rs"),
+            prefix.join("src/services/mod.rs"),
+        ]);
+    }
 
     println!(
         "🚀 Generating {} '{}' with {} field(s)...\n",
@@ -405,18 +417,27 @@ pub fn run(
         println!("   Example: --fields 'title:string:required:length(1,255)'\n");
     }
 
-    if domain_exists {
-        println!(
-            "   ⚠️  Model '{}' already exists — skipping file and migration creation.\n",
-            model_camel
-        );
-        println!("✅ Done!");
-        return;
+    let mut create_targets = vec![
+        domain_path.clone(),
+        repo_path.clone(),
+        migration_path.clone(),
+    ];
+    if gen_type == "resource" {
+        create_targets.extend([dto_path.clone(), handler_path.clone(), service_path.clone()]);
     }
+    preflight_create_targets(&create_targets);
+    preflight_update_targets(&update_targets);
+
+    if gen_type == "resource" {
+        preflight_router_injection(&prefix, &model_lower);
+    }
+
+    fs::create_dir_all(&m_dir)
+        .unwrap_or_else(|e| fail(format!("Failed to create migrations dir: {}", e)));
 
     create_file(&domain_path, &domain_template(&model_camel, &fields));
     create_file(
-        &s(&format!("src/repository/{}_repo.rs", model_lower)),
+        &repo_path,
         &repo_template(
             &model_camel,
             &model_lower,
@@ -426,48 +447,43 @@ pub fn run(
             &scopes,
         ),
     );
-    append_mod(&s("src/domain/mod.rs"), &model_lower);
+    append_mod(&prefix.join("src/domain/mod.rs"), &model_lower);
     append_mod(
-        &s("src/repository/mod.rs"),
+        &prefix.join("src/repository/mod.rs"),
         &format!("{}_repo", model_lower),
     );
 
     if gen_type == "resource" {
         create_file(
-            &s(&format!("src/http/dtos/{}_dto.rs", model_lower)),
+            &dto_path,
             &dto_template(&model_camel, &model_lower, &fields, &scopes),
         );
         create_file(
-            &s(&format!("src/http/handlers/{}_routes.rs", model_lower)),
+            &handler_path,
             &handler_template(&model_camel, &model_lower, &scopes),
         );
         create_file(
-            &s(&format!("src/services/{}_service.rs", model_lower)),
+            &service_path,
             &service_template(&model_camel, &model_lower, &scopes),
         );
-        append_mod(&s("src/http/dtos/mod.rs"), &format!("{}_dto", model_lower));
         append_mod(
-            &s("src/http/handlers/mod.rs"),
+            &prefix.join("src/http/dtos/mod.rs"),
+            &format!("{}_dto", model_lower),
+        );
+        append_mod(
+            &prefix.join("src/http/handlers/mod.rs"),
             &format!("{}_routes", model_lower),
         );
         append_mod(
-            &s("src/services/mod.rs"),
+            &prefix.join("src/services/mod.rs"),
             &format!("{}_service", model_lower),
         );
         inject_router(&prefix, &model_lower, &table_name, &scopes);
     }
 
-    fs::create_dir_all(&m_dir).unwrap_or_else(|e| panic!("Failed to create migrations dir: {}", e));
-
     let trigger_path = m_dir.join("00000000000000_create_trigger_function.sql");
-    create_file(&trigger_path.to_string_lossy(), TRIGGER_FUNCTION_SQL);
-
-    let ver = next_migration_version(&m_dir);
-    let mpath = m_dir.join(format!("{}_create_{}.sql", ver, table_name));
-    create_file(
-        &mpath.to_string_lossy(),
-        &table_migration_sql(&table_name, &fields),
-    );
+    create_file_if_missing(&trigger_path, TRIGGER_FUNCTION_SQL);
+    create_file(&migration_path, &table_migration_sql(&table_name, &fields));
 
     println!();
     println!("✅ Done!");
@@ -493,60 +509,132 @@ pub fn run(
     }
 }
 
-fn create_file(path: &str, content: &str) {
-    if Path::new(path).exists() {
-        println!("⚠️  Skipped: {} (already exists)", path);
+fn preflight_create_targets(paths: &[PathBuf]) {
+    let existing: Vec<_> = paths.iter().filter(|path| path.exists()).collect();
+    if existing.is_empty() {
         return;
     }
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .unwrap_or_else(|e| panic!("Failed to create {}: {}", path, e));
-    file.write_all(content.as_bytes()).unwrap();
-    println!("   📄 Created: {}", path);
+
+    eprintln!("❌ Generation would overwrite existing files:");
+    for path in existing {
+        eprintln!("   - {}", path.display());
+    }
+    eprintln!("Remove or rename the existing files before running the generator again.");
+    std::process::exit(1);
 }
 
-fn append_mod(file_path: &str, mod_name: &str) {
-    let stmt = format!("pub mod {};\n", mod_name);
-    if let Ok(content) = fs::read_to_string(file_path) {
-        if content.contains(&stmt) {
-            return;
-        }
+fn preflight_update_targets(paths: &[PathBuf]) {
+    for path in paths {
+        fs::read_to_string(path)
+            .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", path.display(), e)));
     }
+}
+
+fn create_file(path: &Path, content: &str) {
     let mut file = OpenOptions::new()
-        .append(true)
-        .open(file_path)
-        .unwrap_or_else(|e| panic!("Failed to open {}: {}", file_path, e));
-    file.write_all(stmt.as_bytes()).unwrap();
-    println!("   ⚙️  Updated: {}", file_path);
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .unwrap_or_else(|e| fail(format!("Failed to create {}: {}", path.display(), e)));
+    file.write_all(content.as_bytes())
+        .unwrap_or_else(|e| fail(format!("Failed to write {}: {}", path.display(), e)));
+    println!("   📄 Created: {}", path.display());
+}
+
+fn create_file_if_missing(path: &Path, content: &str) {
+    if path.exists() {
+        println!("   ⚠️  Skipped: {} (already exists)", path.display());
+        return;
+    }
+    create_file(path, content);
+}
+
+fn append_mod(file_path: &Path, mod_name: &str) {
+    let stmt = format!("pub mod {};", mod_name);
+    let content = fs::read_to_string(file_path)
+        .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", file_path.display(), e)));
+
+    if content.lines().any(|line| line.trim() == stmt) {
+        return;
+    }
+
+    let mut lines: Vec<String> = content.lines().map(ToOwned::to_owned).collect();
+    let insert_at = lines
+        .iter()
+        .rposition(|line| is_mod_line(line))
+        .map(|idx| idx + 1)
+        .unwrap_or(lines.len());
+    lines.insert(insert_at, stmt);
+
+    let mod_indices: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, line)| is_mod_line(line).then_some(idx))
+        .collect();
+    let mut mod_lines: Vec<String> = mod_indices
+        .iter()
+        .map(|idx| lines[*idx].trim().to_string())
+        .collect();
+    mod_lines.sort();
+
+    for (idx, line) in mod_indices.into_iter().zip(mod_lines) {
+        lines[idx] = line;
+    }
+
+    let mut updated = lines.join("\n");
+    updated.push('\n');
+    fs::write(file_path, updated)
+        .unwrap_or_else(|e| fail(format!("Failed to update {}: {}", file_path.display(), e)));
+    println!("   ⚙️  Updated: {}", file_path.display());
+}
+
+fn is_mod_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with("pub mod ") && trimmed.ends_with(';')
+}
+
+fn preflight_router_injection(prefix: &Path, lower: &str) {
+    let router_path = prefix.join("src/http/mod.rs");
+    let content = fs::read_to_string(&router_path)
+        .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", router_path.display(), e)));
+
+    if content.contains(&format!("handlers::{}_routes", lower)) {
+        fail(format!(
+            "Routes for '{}' already appear to be registered in {}.",
+            lower,
+            router_path.display()
+        ));
+    }
+
+    if !content.contains(ROUTE_MARKER) {
+        fail(format!(
+            "Could not find router marker `{}` in {}. Add it immediately before `.with_state(state)`.",
+            ROUTE_MARKER.trim(),
+            router_path.display()
+        ));
+    }
 }
 
 fn inject_router(prefix: &Path, lower: &str, plural: &str, scopes: &[ScopeConfig]) {
     let router_path = prefix.join("src/http/mod.rs");
-    let content = fs::read_to_string(&router_path).expect("Failed to read http/mod.rs");
-
-    if content.contains(&format!("handlers::{}_routes", lower)) {
-        println!("⚠️  Skipped: router injection (routes already exist)");
-        return;
-    }
+    let content = fs::read_to_string(&router_path)
+        .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", router_path.display(), e)));
 
     let route_prefix = route_prefix(scopes);
     let new_routes = format!(
-        "// {Model} routes\n        \
+        "        // {Model} routes\n        \
          .route(\"{route_prefix}/{plural}\", get(handlers::{lower}_routes::list_{lower}s).post(handlers::{lower}_routes::create_{lower}))\n        \
          .route(\"{route_prefix}/{plural}/cursor\", get(handlers::{lower}_routes::list_{lower}s_cursor))\n        \
-         .route(\"{route_prefix}/{plural}/{{id}}\", get(handlers::{lower}_routes::get_{lower}).put(handlers::{lower}_routes::update_{lower}).delete(handlers::{lower}_routes::delete_{lower}))\n        \
-         .with_state(state)",
+         .route(\"{route_prefix}/{plural}/{{id}}\", get(handlers::{lower}_routes::get_{lower}).put(handlers::{lower}_routes::update_{lower}).delete(handlers::{lower}_routes::delete_{lower}))\n{ROUTE_MARKER}",
         Model = to_camel_case(lower),
         route_prefix = route_prefix,
         plural = plural,
         lower = lower,
     );
 
-    let updated = content.replace(".with_state(state)", &new_routes);
-    fs::write(&router_path, updated).unwrap();
+    let updated = content.replacen(ROUTE_MARKER, &new_routes, 1);
+    fs::write(&router_path, updated)
+        .unwrap_or_else(|e| fail(format!("Failed to update {}: {}", router_path.display(), e)));
     println!("   🔀 Injected: routes into {}", router_path.display());
 }
 
@@ -567,15 +655,15 @@ fn to_camel_case(s: &str) -> String {
 
 fn next_migration_version(m_dir: &Path) -> String {
     let mut max_ver: u64 = 0;
-    if m_dir.exists() {
-        if let Ok(entries) = fs::read_dir(m_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if let Some(ver_str) = name.split('_').next() {
-                    if let Ok(ver) = ver_str.parse::<u64>() {
-                        max_ver = max_ver.max(ver);
-                    }
-                }
+    if m_dir.exists()
+        && let Ok(entries) = fs::read_dir(m_dir)
+    {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if let Some(ver_str) = name.split('_').next()
+                && let Ok(ver) = ver_str.parse::<u64>()
+            {
+                max_ver = max_ver.max(ver);
             }
         }
     }
@@ -855,7 +943,8 @@ fn repo_template(
     let imports = if gen_type == "resource" {
         format!(
             "use crate::{{http::dtos::{lower}_dto::{{Create{Model}, Update{Model}}}, domain::{lower}::{Model}}};",
-            lower = lower, Model = model
+            lower = lower,
+            Model = model
         )
     } else {
         format!(

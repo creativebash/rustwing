@@ -38,8 +38,15 @@ async fn main() {
     let max_tokens = std::env::var("LLM_MAX_TOKENS").ok().and_then(|v| v.parse().ok());
     let llm = build_client_with_config(&provider, &model, max_tokens);
 
-    let jwt_secret = std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "super_secret_dev_key_change_me".to_string());
+    let jwt_secret = match std::env::var("JWT_SECRET") {
+        Ok(secret) => secret,
+        Err(_) => {
+            tracing::warn!(
+                "JWT_SECRET is not set; using an insecure development fallback. Set JWT_SECRET before production."
+            );
+            "super_secret_dev_key_change_me".to_string()
+        }
+    };
 
     let state = state::AppState {
         db: pool,

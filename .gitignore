@@ -1,7 +1,13 @@
 /target
+/test_e2e
+/test_project
+/rustwing_*_smoke*
 .env
+.env.local
+.env.*.local
 .sqlx
 .idea/
+.vscode/
+.DS_Store
 *.swp
 ROADMAP.private.md
-

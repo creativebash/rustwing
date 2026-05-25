@@ -11,7 +11,7 @@ const VERSION_INFO: &str = concat!(
     "CLI ",
     env!("CARGO_PKG_VERSION"),
     "\nrustwing framework ",
-    "0.1.5",  // FRAMEWORK_VERSION — bump when rustwing/ releases
+    "0.1.5", // FRAMEWORK_VERSION — bump when rustwing/ releases
 );
 
 #[derive(Parser)]
@@ -76,7 +76,10 @@ fn run() {
     let status = Command::new("cargo")
         .args(["run", "--bin", "api"])
         .status()
-        .expect("Failed to run cargo — is it installed?");
+        .unwrap_or_else(|e| {
+            eprintln!("❌ Failed to run cargo — is it installed? {}", e);
+            std::process::exit(1);
+        });
 
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));

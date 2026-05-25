@@ -25,5 +25,3 @@ pub trait Updateable {
         query: &mut sqlx::QueryBuilder<'a, sqlx::Postgres>,
     ) -> UpdateResult;
 }
-
-

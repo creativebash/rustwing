@@ -2,11 +2,15 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+fn fail(message: impl std::fmt::Display) -> ! {
+    eprintln!("❌ {}", message);
+    std::process::exit(1);
+}
+
 pub fn run(project_name: &str, local_framework: Option<&str>) {
     let dest = Path::new(project_name);
     if dest.exists() {
-        eprintln!("❌ Directory '{}' already exists.", project_name);
-        std::process::exit(1);
+        fail(format!("Directory '{}' already exists.", project_name));
     }
 
     println!("🚀 Creating Rustwing project '{}'...\n", project_name);
@@ -15,14 +19,16 @@ pub fn run(project_name: &str, local_framework: Option<&str>) {
         let file_path = dest.join(path);
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).unwrap_or_else(|e| {
-                eprintln!("❌ Failed to create directory {}: {}", parent.display(), e);
-                std::process::exit(1);
+                fail(format!(
+                    "Failed to create directory {}: {}",
+                    parent.display(),
+                    e
+                ));
             });
         }
         let processed = content.replace("{{project_name}}", project_name);
         fs::write(&file_path, processed).unwrap_or_else(|e| {
-            eprintln!("❌ Failed to write {}: {}", file_path.display(), e);
-            std::process::exit(1);
+            fail(format!("Failed to write {}: {}", file_path.display(), e));
         });
         println!("   📄 Created: {}", path);
     }
@@ -37,8 +43,9 @@ pub fn run(project_name: &str, local_framework: Option<&str>) {
         let mut file = fs::OpenOptions::new()
             .append(true)
             .open(&cargo_path)
-            .unwrap_or_else(|e| panic!("Failed to open {}: {}", cargo_path.display(), e));
-        file.write_all(patch.as_bytes()).unwrap();
+            .unwrap_or_else(|e| fail(format!("Failed to open {}: {}", cargo_path.display(), e)));
+        file.write_all(patch.as_bytes())
+            .unwrap_or_else(|e| fail(format!("Failed to write {}: {}", cargo_path.display(), e)));
         println!(
             "   🔧 Patched: {} → local rustwing at {}",
             cargo_path.display(),
@@ -61,7 +68,8 @@ fn resolve_framework_path(path: &str) -> PathBuf {
     let base = if p.is_absolute() {
         p.to_path_buf()
     } else {
-        let cwd = std::env::current_dir().expect("Failed to get current directory");
+        let cwd = std::env::current_dir()
+            .unwrap_or_else(|e| fail(format!("Failed to get current directory: {}", e)));
         cwd.join(p)
     };
 

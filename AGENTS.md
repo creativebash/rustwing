@@ -81,6 +81,8 @@ cargo check
 cargo test
 cargo fmt
 cargo clippy
+scripts/check-version-drift.sh
+scripts/test-template.sh
 
 cargo run --bin rustwing -- --help
 cargo run --bin rustwing -- g --help

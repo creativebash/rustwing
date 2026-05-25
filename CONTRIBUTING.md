@@ -66,8 +66,11 @@ cd cli && cargo run --bin gen-template
 ```bash
 # Full workspace
 cargo check
+cargo test
+scripts/check-version-drift.sh
+scripts/test-template.sh
 
-# Test the new command end-to-end
+# Test the new command end-to-end manually
 cargo run --bin rustwing -- new test_project
 cd test_project
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
@@ -154,10 +157,11 @@ cd cli && cargo run --bin gen-template
 Test your template changes:
 
 ```bash
-# Verify the workspace still compiles
+# Verify the workspace and generated project still compile
 cargo check
+scripts/test-template.sh
 
-# Create a test project and verify it compiles
+# Or create a test project and verify it manually
 cargo run --bin rustwing -- new test_project
 cd test_project
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
