@@ -2,6 +2,16 @@
 
 This is a Rustwing SaaS project. Below is the context you need to understand its structure and conventions before making changes or adding features.
 
+## Agent operating rules
+
+- Treat the `rustwing` CLI as the fastest and most reliable way to create app structure. Before hand-writing a CRUD resource, model, route bundle, DTO set, repository, service, or migration, check whether the request maps to `rustwing g resource` or `rustwing g model`.
+- Prefer generating first, then editing the generated files for domain-specific behavior. This keeps routing, pagination, module registration, timestamps, migrations, validation shape, and repository traits aligned with Rustwing conventions.
+- Use `rustwing g --help` when command syntax is unclear. The generator shape is `rustwing g <resource|model> <name> [--tenant ...] [--scope ...] --fields ...`.
+- Use singular, snake_case names for generated resources and models, for example `ticket`, `comment`, `knowledge_base_article`.
+- After generation, inspect the diff or changed files, add custom business rules in services first, and run `cargo check`.
+- For token efficiency, do not expand or rewrite standard generated CRUD boilerplate in chat; run the CLI, then inspect only the changed files that need customization.
+- Only fall back to manual scaffolding when the CLI is unavailable or cannot express the required shape. If that happens, follow the manual checklist below and keep the same file names, module registrations, and migration conventions the generator would have used.
+
 ## Project structure
 
 ```
@@ -48,9 +58,9 @@ Rustwing provides conventions, scaffolding, and built-in auth/CRUD on top of **A
 
 ## Key conventions
 
-### Resource generator — prefer using the CLI
+### Resource generator - CLI-first
 
-Whenever possible, generate new resources via the CLI rather than writing boilerplate:
+Whenever possible, generate new resources via the CLI rather than writing boilerplate. For agents, this saves tokens and avoids subtle wiring mistakes:
 
 ```
 rustwing g resource product \
@@ -59,6 +69,24 @@ rustwing g resource product \
 ```
 
 This generates: domain model, DTOs (Create/Update/Response), service module, repository impl, route handlers (list/create/get/update/delete with pagination), router injection, and a database migration — all following the project's conventions.
+
+Field syntax:
+
+```
+--fields 'name:type:required|optional[:validator]'
+```
+
+Supported field types: `string`, `int`/`i32`, `i64`, `float`/`f64`, `bool`, `uuid`, `datetime`, `json`/`jsonb`, `ref`.
+
+Useful validator hints: `length(min,max)`, `range(min,max)`, `email`, `url`, `none`, or a raw `validator` crate expression. If no validator is supplied, strings, integers, and floats get sensible defaults.
+
+Use `ref` for foreign key IDs when you want a generated `UUID REFERENCES <plural_table> (id)` column:
+
+```
+rustwing g resource invoice \
+  --fields 'account_id:ref:required' \
+  --fields 'amount:f64:required:range(0.0)'
+```
 
 For resources scoped to a parent record, use `--scope` explicitly:
 
@@ -179,6 +207,7 @@ Put polling, queues, AI enrichment, and other background workflows in worker ser
 cargo check                              # Verify compilation
 cargo run --bin api                      # Start the API server (migrations auto-run)
 cargo run --bin worker                   # Start the background worker tick loop
+rustwing g --help                        # Show generator arguments and flags
 rustwing g resource <name> --fields ...  # Generate a full REST resource
 rustwing g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
@@ -186,6 +215,8 @@ rustwing g model <name> ...              # Generate a data-only model
 ```
 
 ## If adding a new resource manually
+
+Do this only when the CLI is blocked or the required change is beyond what it can generate. Otherwise, use `rustwing g resource`.
 
 1. Create domain model in `api/src/domain/<name>.rs` and add `pub mod` to `mod.rs`
 2. Create repository in `api/src/repository/<name>_repo.rs` with `ModelName` impl
