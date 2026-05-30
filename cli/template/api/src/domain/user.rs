@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, FromRow, Clone)]
+#[derive(Debug, Serialize, FromRow, ToSchema, Clone)]
 pub struct User {
     pub id: Uuid,
     pub password_hash: String,

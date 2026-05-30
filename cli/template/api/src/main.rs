@@ -1,6 +1,7 @@
 mod domain;
 mod error;
 mod http;
+mod openapi;
 mod repository;
 mod services;
 mod state;
@@ -12,6 +13,16 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
+    if std::env::args().any(|arg| arg == "--openapi-json") {
+        println!(
+            "{}",
+            openapi::openapi()
+                .to_pretty_json()
+                .expect("Failed to serialize OpenAPI document")
+        );
+        return;
+    }
+
     dotenvy::dotenv().ok();
 
     tracing_subscriber::registry()

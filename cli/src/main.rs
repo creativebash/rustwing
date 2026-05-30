@@ -1,6 +1,8 @@
 mod generate;
 mod new;
+mod openapi_export;
 mod template_data;
+mod ts_client;
 
 use clap::{Parser, Subcommand};
 use std::path::Path;
@@ -36,10 +38,10 @@ enum Commands {
     /// Generate a resource, model, etc.
     #[command(alias = "g")]
     Generate {
-        /// Type: resource or model
+        /// Generator: resource, model, openapi, or client
         r#type: String,
-        /// Name of the resource (e.g. post, product)
-        name: String,
+        /// Name of the resource/model, or client target for `g client typescript`
+        name: Option<String>,
         /// Tenant scope column for SaaS resources, e.g. org_id
         #[arg(long)]
         tenant: Option<String>,
@@ -49,6 +51,15 @@ enum Commands {
         /// Fields in format: name:type:required|optional[:validator]
         #[arg(long = "fields", num_args = 1)]
         fields: Vec<String>,
+        /// Output path for generated OpenAPI or client artifacts
+        #[arg(long)]
+        output: Option<String>,
+        /// Check whether generated OpenAPI output is up to date
+        #[arg(long)]
+        check: bool,
+        /// Print generated OpenAPI JSON to stdout
+        #[arg(long)]
+        stdout: bool,
     },
 }
 
@@ -63,7 +74,64 @@ fn main() {
             tenant,
             scopes,
             fields,
-        } => generate::run(&r#type, &name, &fields, tenant.as_deref(), &scopes),
+            output,
+            check,
+            stdout,
+        } => generate_command(GenerateCommandArgs {
+            gen_type: &r#type,
+            name: name.as_deref(),
+            fields: &fields,
+            tenant: tenant.as_deref(),
+            scopes: &scopes,
+            output: output.as_deref(),
+            check,
+            stdout,
+        }),
+    }
+}
+
+struct GenerateCommandArgs<'a> {
+    gen_type: &'a str,
+    name: Option<&'a str>,
+    fields: &'a [String],
+    tenant: Option<&'a str>,
+    scopes: &'a [String],
+    output: Option<&'a str>,
+    check: bool,
+    stdout: bool,
+}
+
+fn generate_command(args: GenerateCommandArgs<'_>) {
+    match args.gen_type {
+        "resource" | "model" => {
+            let Some(name) = args.name else {
+                eprintln!(
+                    "❌ Missing name. Use `rustwing g {} <name>`.",
+                    args.gen_type
+                );
+                std::process::exit(1);
+            };
+            generate::run(args.gen_type, name, args.fields, args.tenant, args.scopes);
+        }
+        "openapi" => openapi_export::run(args.output, args.check, args.stdout),
+        "client" => {
+            let Some(language) = args.name else {
+                eprintln!("❌ Missing client target. Use `rustwing g client typescript`.");
+                std::process::exit(1);
+            };
+            if args.check || args.stdout {
+                eprintln!("❌ --check and --stdout are only supported by `rustwing g openapi`.");
+                std::process::exit(1);
+            }
+            ts_client::run(language, args.output);
+        }
+        other => {
+            eprintln!(
+                "❌ Invalid generator: '{}'. Use resource, model, openapi, or client.",
+                other
+            );
+            std::process::exit(1);
+        }
     }
 }
 

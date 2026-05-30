@@ -17,6 +17,7 @@ Rustwing is a batteries-included framework for developers who want to build prod
 - **Auth** — Argon2 password hashing + JWT tokens out of the box
 - **Service-first CRUD scaffolding** — Generate REST endpoints, services, repositories, and migrations
 - **Scoped resources** — Opt into SaaS-style or parent-child routes and SQLx helpers with `--tenant` or `--scope`
+- **API-first by default** — OpenAPI JSON, Swagger UI, ReDoc, and TypeScript client generation for generated APIs
 - **Migrations** — Automatic database migrations on run
 - **Background workers** — Wired worker binary with DB pool, LLM client, and tick loop
 - **LLM hooks** — Pluggable AI integrations (DeepSeek, OpenAI, Gemini, Anthropic, local stubs)
@@ -30,6 +31,7 @@ cargo install rustwing-cli
 rustwing new my_app
 cd my_app
 rustwing run
+# Open http://localhost:3000/docs
 ```
 
 ## Philosophy
@@ -97,6 +99,27 @@ rustwing g resource comment \
 
 This generates routes like `/tickets/{ticket_id}/comments`. You can combine scopes, for example `--tenant org_id --scope ticket_id`, to generate routes like `/orgs/{org_id}/tickets/{ticket_id}/comments`.
 
+## OpenAPI docs and TypeScript client
+
+Rustwing generated apps expose API docs by default:
+
+```txt
+/openapi.json
+/docs
+/redoc
+```
+
+Run the API and open `http://localhost:3000/docs` to inspect and test generated endpoints.
+
+You can also export the OpenAPI document and generate a frontend client:
+
+```bash
+rustwing g openapi
+rustwing g client typescript
+```
+
+This writes `openapi/openapi.json` and `frontend/generated/{types.ts,client.ts,index.ts}`.
+
 ## Project structure
 
 ```
@@ -139,6 +162,7 @@ See [ROADMAP.md](ROADMAP.md) for what's coming — job queues, frontend SDK gene
 - [Manifesto](MANIFESTO.md)
 - [Getting started](docs/getting-started.md)
 - [CLI reference](docs/cli-reference.md)
+- [OpenAPI and TypeScript client](docs/openapi.md)
 - [Architecture guide](docs/architecture.md)
 - [Configuration reference](docs/configuration.md)
 

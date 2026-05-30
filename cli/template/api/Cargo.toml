@@ -18,3 +18,6 @@ dotenvy = "0.15"
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "json", "chrono", "migrate"] }
 validator = { version = "0.19", features = ["derive"] }
 jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
+utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
+utoipa-redoc = { version = "6", features = ["axum"] }

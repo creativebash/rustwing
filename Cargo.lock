@@ -2180,6 +2180,7 @@ name = "rustwing-cli"
 version = "0.1.12"
 dependencies = [
  "clap",
+ "serde_json",
 ]
 
 [[package]]

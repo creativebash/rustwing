@@ -55,6 +55,7 @@ The server:
 1. Connects to Postgres
 2. Runs pending migrations (creates tables automatically)
 3. Starts listening on `http://0.0.0.0:3000`
+4. Serves OpenAPI docs at `http://localhost:3000/docs` and `http://localhost:3000/redoc`
 
 ## Test the API
 
@@ -91,7 +92,7 @@ curl http://localhost:3000/users/<id> \
 ```bash
 rustwing g resource post \
   --fields 'title:string:required:length(1,255)' \
-  --fields 'body:string:required'
+  --fields 'body:text:required'
 ```
 
 This creates:
@@ -101,6 +102,7 @@ This creates:
 - SQLx-native repository glue and explicit CRUD behavior
 - Route handlers with offset and cursor pagination
 - Router registration
+- OpenAPI schemas and route metadata
 - Database migration
 
 ```bash
@@ -145,6 +147,17 @@ rustwing g resource note \
   --fields 'body:string:required'
 ```
 
+## Export OpenAPI and generate a frontend client
+
+```bash
+rustwing g openapi
+rustwing g client typescript
+```
+
+This writes `openapi/openapi.json` and a typed fetch client in `frontend/generated/`.
+
+Use `rustwing g openapi --check` in CI to fail when the checked-in contract is out of date.
+
 ## Run the worker
 
 The generated worker connects to the same database, builds the configured LLM client, and runs a tick loop:
@@ -158,5 +171,6 @@ Set `WORKER_TICK_SECONDS` to change the polling interval.
 ## Next steps
 
 - [CLI reference](cli-reference.md) — all `rustwing` commands
+- [OpenAPI and TypeScript client](openapi.md) — docs, contract export, and generated frontend client
 - [Architecture guide](architecture.md) — how the framework works
 - [Configuration reference](configuration.md) — all environment variables

@@ -23,8 +23,8 @@
 ## v0.4 — Frontend SDK
 
 - [ ] **`rustwing g resource` emits TypeScript types** — alongside the Rust code, generate a `typescript/types.ts` with interfaces for all DTOs.
-- [ ] **OpenAPI spec generation** — derive or annotate routes to produce an OpenAPI document.
-- [ ] **Generated API client** — TypeScript fetch client that matches the Rust API.
+- [x] **OpenAPI spec generation** — generated apps expose `/openapi.json`, `/docs`, and `/redoc`, with resource metadata injected by the CLI.
+- [x] **Generated API client** — `rustwing g client typescript` emits a typed fetch client from the OpenAPI document.
 
 ## v0.5 — SaaS features
 

@@ -7,6 +7,8 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use utoipa_redoc::{Redoc, Servable};
+use utoipa_swagger_ui::SwaggerUi;
 
 pub fn app_router(state: AppState) -> Router {
     Router::new()
@@ -18,8 +20,11 @@ pub fn app_router(state: AppState) -> Router {
             "/users/{id}",
             get(handlers::user_routes::get_user)
                 .put(handlers::user_routes::update_user)
+                .patch(handlers::user_routes::update_user)
                 .delete(handlers::user_routes::delete_user),
         )
         // rustwing:routes
+        .merge(SwaggerUi::new("/docs").url("/openapi.json", crate::openapi::openapi()))
+        .merge(Redoc::with_url("/redoc", crate::openapi::openapi()))
         .with_state(state)
 }

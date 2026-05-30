@@ -20,6 +20,7 @@ Brings in the most common framework items:
 ┌─────────────────────────────────────────────┐
 │               HTTP Layer                     │
 │  routes → handlers (AuthUser) → DTOs        │
+│  OpenAPI JSON + Swagger/ReDoc docs          │
 ├─────────────────────────────────────────────┤
 │             Service Layer                    │
 │  validation, tenant scope, AI calls          │
@@ -168,6 +169,22 @@ This generates routes like:
 ```
 
 Generated repository helpers include scope filters on list, get, update, and delete operations, for example `find_by_org_id_and_ticket_id` and `delete_by_org_id_and_ticket_id_and_id`.
+
+## OpenAPI
+
+Generated apps expose:
+
+```txt
+/openapi.json
+/docs
+/redoc
+```
+
+Rustwing uses generated DTO derives and `utoipa::path` annotations in handlers. The resource generator injects new generated routes and schemas into `api/src/openapi.rs`, so normal generated resources do not require hand-written OpenAPI specs.
+
+`rustwing g openapi` exports the runtime OpenAPI document to `openapi/openapi.json`, and `rustwing g client typescript` generates a typed fetch client in `frontend/generated/`.
+
+Scoped resources document path params automatically. For example, `--tenant org_id --scope ticket_id` produces paths like `/orgs/{org_id}/tickets/{ticket_id}/notes/{note_id}` with `org_id`, `ticket_id`, and `note_id` documented as UUID path parameters.
 
 ## Error handling
 

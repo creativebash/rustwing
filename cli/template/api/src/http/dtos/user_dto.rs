@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 use crate::domain::user::User;
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Validate, ToSchema)]
 pub struct RegisterRequest {
     #[validate(length(min = 1, max = 50))]
     pub username: String,
@@ -14,20 +15,21 @@ pub struct RegisterRequest {
     pub password: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
+#[schema(as = UpdateUserRequest)]
 pub struct UpdateUser {
     pub username: Option<String>,
     pub email: Option<String>,
     pub bio: Option<String>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, ToSchema, Clone)]
 pub struct UserResponse {
     pub id: Uuid,
     pub username: String,
@@ -52,7 +54,7 @@ impl From<User> for UserResponse {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct AuthResponse {
     pub token: String,
     pub user: UserResponse,

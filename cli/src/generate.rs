@@ -3,6 +3,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const ROUTE_MARKER: &str = "        // rustwing:routes";
+const OPENAPI_PATHS_MARKER: &str = "        // rustwing:openapi-paths";
+const OPENAPI_SCHEMAS_MARKER: &str = "            // rustwing:openapi-schemas";
+const OPENAPI_TAGS_MARKER: &str = "        // rustwing:openapi-tags";
 
 fn fail(message: impl std::fmt::Display) -> ! {
     eprintln!("❌ {}", message);
@@ -117,7 +120,7 @@ impl Field {
         let validator_hint = parts.get(3).map(|s| s.to_string());
 
         let (rust_type, sql_type) = match type_str.as_str() {
-            "string" => ("String".to_string(), "TEXT".to_string()),
+            "string" | "text" => ("String".to_string(), "TEXT".to_string()),
             "int" | "i32" => ("i32".to_string(), "INTEGER".to_string()),
             "i64" => ("i64".to_string(), "BIGINT".to_string()),
             "float" | "f64" => ("f64".to_string(), "DECIMAL(10,2)".to_string()),
@@ -134,7 +137,7 @@ impl Field {
             }
             other => {
                 return Err(format!(
-                    "Unknown type: '{}'. Supported: string, int, i32, i64, float, f64, bool, uuid, datetime, json, jsonb, ref",
+                    "Unknown type: '{}'. Supported: string, text, int, i32, i64, float, f64, bool, uuid, datetime, json, jsonb, ref",
                     other
                 ));
             }
@@ -303,10 +306,10 @@ fn scope_where_clause(scopes: &[ScopeConfig], starting_index: usize) -> String {
         .join(" AND ")
 }
 
-fn path_extractor(scopes: &[ScopeConfig], include_id: bool) -> String {
+fn path_extractor(scopes: &[ScopeConfig], include_id: bool, id_name: &str) -> String {
     let mut names: Vec<String> = scopes.iter().map(|scope| scope.field.clone()).collect();
     if include_id {
-        names.push("id".to_string());
+        names.push(id_name.to_string());
     }
 
     if names.len() == 1 {
@@ -314,6 +317,60 @@ fn path_extractor(scopes: &[ScopeConfig], include_id: bool) -> String {
     } else {
         let types = vec!["Uuid"; names.len()].join(", ");
         format!("Path(({})): Path<({})>", names.join(", "), types)
+    }
+}
+
+fn human_label(identifier: &str) -> String {
+    identifier
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            if part.eq_ignore_ascii_case("id") {
+                "ID".to_string()
+            } else {
+                uppercase_first(part)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn tag_name(resource: &str) -> String {
+    human_label(resource)
+}
+
+fn openapi_params_block(
+    scopes: &[ScopeConfig],
+    id_name: Option<&str>,
+    query_type: Option<&str>,
+) -> String {
+    let mut entries: Vec<String> = scopes
+        .iter()
+        .map(|scope| {
+            format!(
+                "        (\"{}\" = Uuid, Path, description = \"{}\"),",
+                scope.field,
+                human_label(&scope.field)
+            )
+        })
+        .collect();
+
+    if let Some(id_name) = id_name {
+        entries.push(format!(
+            "        (\"{}\" = Uuid, Path, description = \"{}\"),",
+            id_name,
+            human_label(id_name)
+        ));
+    }
+
+    if let Some(query_type) = query_type {
+        entries.push(format!("        {},", query_type));
+    }
+
+    if entries.is_empty() {
+        String::new()
+    } else {
+        format!("    params(\n{}\n    ),\n", entries.join("\n"))
     }
 }
 
@@ -430,6 +487,7 @@ pub fn run(
 
     if gen_type == "resource" {
         preflight_router_injection(&prefix, &model_lower);
+        preflight_openapi_injection(&prefix, &model_lower);
     }
 
     fs::create_dir_all(&m_dir)
@@ -479,6 +537,7 @@ pub fn run(
             &format!("{}_service", model_lower),
         );
         inject_router(&prefix, &model_lower, &table_name, &scopes);
+        inject_openapi(&prefix, &model_camel, &model_lower, &table_name);
     }
 
     let trigger_path = m_dir.join("00000000000000_create_trigger_function.sql");
@@ -615,23 +674,110 @@ fn preflight_router_injection(prefix: &Path, lower: &str) {
     }
 }
 
+fn preflight_openapi_injection(prefix: &Path, lower: &str) {
+    let openapi_path = prefix.join("src/openapi.rs");
+    if !openapi_path.exists() {
+        return;
+    }
+
+    let content = fs::read_to_string(&openapi_path)
+        .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", openapi_path.display(), e)));
+
+    if content.contains(&format!("handlers::{}_routes::list_{}s", lower, lower)) {
+        fail(format!(
+            "OpenAPI metadata for '{}' already appears to be registered in {}.",
+            lower,
+            openapi_path.display()
+        ));
+    }
+
+    for marker in [
+        OPENAPI_PATHS_MARKER,
+        OPENAPI_SCHEMAS_MARKER,
+        OPENAPI_TAGS_MARKER,
+    ] {
+        if !content.contains(marker) {
+            fail(format!(
+                "Could not find OpenAPI marker `{}` in {}.",
+                marker,
+                openapi_path.display()
+            ));
+        }
+    }
+}
+
+fn inject_openapi(prefix: &Path, model: &str, lower: &str, plural: &str) {
+    let openapi_path = prefix.join("src/openapi.rs");
+    if !openapi_path.exists() {
+        println!(
+            "   ⚠️  Skipped: OpenAPI registration ({} not found)",
+            openapi_path.display()
+        );
+        return;
+    }
+
+    let content = fs::read_to_string(&openapi_path)
+        .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", openapi_path.display(), e)));
+
+    let paths = format!(
+        "        handlers::{lower}_routes::list_{lower}s,\n        \
+         handlers::{lower}_routes::list_{lower}s_cursor,\n        \
+         handlers::{lower}_routes::get_{lower},\n        \
+         handlers::{lower}_routes::create_{lower},\n        \
+         handlers::{lower}_routes::update_{lower},\n        \
+         handlers::{lower}_routes::delete_{lower},\n{OPENAPI_PATHS_MARKER}",
+        lower = lower,
+    );
+    let schemas = format!(
+        "            crate::domain::{lower}::{Model},\n            \
+         crate::http::dtos::{lower}_dto::Create{Model},\n            \
+         crate::http::dtos::{lower}_dto::Update{Model},\n            \
+         crate::http::dtos::{lower}_dto::{Model}Response,\n{OPENAPI_SCHEMAS_MARKER}",
+        lower = lower,
+        Model = model,
+    );
+    let tag = tag_name(plural);
+    let tags = format!(
+        "        (name = \"{tag}\", description = \"{tag} resource endpoints\"),\n{OPENAPI_TAGS_MARKER}",
+        tag = tag,
+    );
+
+    let updated = content
+        .replacen(OPENAPI_PATHS_MARKER, &paths, 1)
+        .replacen(OPENAPI_SCHEMAS_MARKER, &schemas, 1)
+        .replacen(OPENAPI_TAGS_MARKER, &tags, 1);
+
+    fs::write(&openapi_path, updated).unwrap_or_else(|e| {
+        fail(format!(
+            "Failed to update {}: {}",
+            openapi_path.display(),
+            e
+        ))
+    });
+    println!(
+        "   📘 Injected: OpenAPI metadata into {}",
+        openapi_path.display()
+    );
+}
+
 fn inject_router(prefix: &Path, lower: &str, plural: &str, scopes: &[ScopeConfig]) {
     let router_path = prefix.join("src/http/mod.rs");
     let content = fs::read_to_string(&router_path)
         .unwrap_or_else(|e| fail(format!("Failed to read {}: {}", router_path.display(), e)));
 
     let route_prefix = route_prefix(scopes);
+    let id_param = format!("{}_id", lower);
     let new_routes = format!(
         "        // {Model} routes\n        \
          .route(\"{route_prefix}/{plural}\", get(handlers::{lower}_routes::list_{lower}s).post(handlers::{lower}_routes::create_{lower}))\n        \
          .route(\"{route_prefix}/{plural}/cursor\", get(handlers::{lower}_routes::list_{lower}s_cursor))\n        \
-         .route(\"{route_prefix}/{plural}/{{id}}\", get(handlers::{lower}_routes::get_{lower}).put(handlers::{lower}_routes::update_{lower}).delete(handlers::{lower}_routes::delete_{lower}))\n{ROUTE_MARKER}",
+         .route(\"{route_prefix}/{plural}/{{{id_param}}}\", get(handlers::{lower}_routes::get_{lower}).put(handlers::{lower}_routes::update_{lower}).patch(handlers::{lower}_routes::update_{lower}).delete(handlers::{lower}_routes::delete_{lower}))\n{ROUTE_MARKER}",
         Model = to_camel_case(lower),
         route_prefix = route_prefix,
         plural = plural,
         lower = lower,
+        id_param = id_param,
     );
-
     let updated = content.replacen(ROUTE_MARKER, &new_routes, 1);
     fs::write(&router_path, updated)
         .unwrap_or_else(|e| fail(format!("Failed to update {}: {}", router_path.display(), e)));
@@ -713,9 +859,10 @@ fn domain_template(model: &str, fields: &[Field]) -> String {
         r#"use chrono::{{DateTime, Utc}};
 use serde::Serialize;
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, FromRow, Clone)]
+#[derive(Debug, Serialize, FromRow, ToSchema, Clone)]
 pub struct {Model} {{
     pub id: Uuid,
 {fields}    pub created_at: DateTime<Utc>,
@@ -766,19 +913,22 @@ fn dto_template(model: &str, lower: &str, fields: &[Field], scopes: &[ScopeConfi
     format!(
         r#"use chrono::{{DateTime, Utc}};
 use serde::{{Deserialize, Serialize}};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 use crate::domain::{lower}::{Model};
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Validate, ToSchema)]
+#[schema(as = Create{Model}Request)]
 pub struct Create{Model} {{
 {create_fields}}}
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
+#[schema(as = Update{Model}Request)]
 pub struct Update{Model} {{
 {update_fields}}}
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, ToSchema, Clone)]
 pub struct {Model}Response {{
     pub id: Uuid,
 {response_fields}    pub created_at: DateTime<Utc>,
@@ -1123,16 +1273,26 @@ impl ModelName for {Model} {{
 }
 
 fn handler_template(model: &str, lower: &str, scopes: &[ScopeConfig]) -> String {
+    let plural = pluralize(lower);
+    let id_param = format!("{}_id", lower);
+    let route_path = format!("{}/{}", route_prefix(scopes), plural);
+    let item_path = format!("{}/{{{}}}", route_path, id_param);
+    let tag = tag_name(&plural);
+    let list_params = openapi_params_block(scopes, None, Some("Pagination"));
+    let cursor_params = openapi_params_block(scopes, None, Some("CursorPagination"));
+    let scope_params = openapi_params_block(scopes, None, None);
+    let item_params = openapi_params_block(scopes, Some(&id_param), None);
+
     if !scopes.is_empty() {
-        let scoped_path = path_extractor(scopes, false);
-        let scoped_id_path = path_extractor(scopes, true);
+        let scoped_path = path_extractor(scopes, false, &id_param);
+        let scoped_id_path = path_extractor(scopes, true, &id_param);
         let args = scope_args(scopes);
         return format!(
             r#"use axum::{{extract::{{Path, Query, State}}, http::StatusCode, Json}};
 use uuid::Uuid;
 
 use crate::{{
-    error::AppError,
+    error::{{AppError, ErrorResponse}},
     http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Response}},
     http::extractors::AuthUser,
     http::handlers::user_routes::{{Pagination, CursorPagination}},
@@ -1140,6 +1300,18 @@ use crate::{{
     state::AppState,
 }};
 
+#[utoipa::path(
+    get,
+    path = "{route_path}",
+    tag = "{tag}",
+    operation_id = "list{Model}s",
+{list_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} resources returned", body = Vec<{Model}Response>),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn list_{lower}s(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -1150,6 +1322,18 @@ pub async fn list_{lower}s(
     Ok(Json(items.into_iter().map({Model}Response::from).collect()))
 }}
 
+#[utoipa::path(
+    get,
+    path = "{route_path}/cursor",
+    tag = "{tag}",
+    operation_id = "list{Model}sCursor",
+{cursor_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} resources returned", body = Vec<{Model}Response>),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn list_{lower}s_cursor(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -1160,15 +1344,43 @@ pub async fn list_{lower}s_cursor(
     Ok(Json(items.into_iter().map({Model}Response::from).collect()))
 }}
 
+#[utoipa::path(
+    get,
+    path = "{item_path}",
+    tag = "{tag}",
+    operation_id = "get{Model}",
+{item_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} returned", body = {Model}Response),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "{Model} not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn get_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
     {scoped_id_path},
 ) -> Result<Json<{Model}Response>, AppError> {{
-    let item = {lower}_service::get_{lower}(&state.db, {args}, id).await?;
+    let item = {lower}_service::get_{lower}(&state.db, {args}, {id_param}).await?;
     Ok(Json({Model}Response::from(item)))
 }}
 
+#[utoipa::path(
+    post,
+    path = "{route_path}",
+    tag = "{tag}",
+    operation_id = "create{Model}",
+    request_body = Create{Model},
+{scope_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 201, description = "{Model} created", body = {Model}Response),
+        (status = 400, description = "Validation error", body = ErrorResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 409, description = "Conflict", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn create_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -1179,22 +1391,51 @@ pub async fn create_{lower}(
     Ok((StatusCode::CREATED, Json({Model}Response::from(item))))
 }}
 
+#[utoipa::path(
+    patch,
+    path = "{item_path}",
+    tag = "{tag}",
+    operation_id = "update{Model}",
+    request_body = Update{Model},
+{item_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} updated", body = {Model}Response),
+        (status = 400, description = "Validation error", body = ErrorResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "{Model} not found", body = ErrorResponse),
+        (status = 409, description = "Conflict", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn update_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
     {scoped_id_path},
     Json(payload): Json<Update{Model}>,
 ) -> Result<Json<{Model}Response>, AppError> {{
-    let item = {lower}_service::update_{lower}(&state.db, {args}, id, payload).await?;
+    let item = {lower}_service::update_{lower}(&state.db, {args}, {id_param}, payload).await?;
     Ok(Json({Model}Response::from(item)))
 }}
 
+#[utoipa::path(
+    delete,
+    path = "{item_path}",
+    tag = "{tag}",
+    operation_id = "delete{Model}",
+{item_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 204, description = "{Model} deleted"),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "{Model} not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn delete_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
     {scoped_id_path},
 ) -> Result<StatusCode, AppError> {{
-    {lower}_service::delete_{lower}(&state.db, {args}, id).await?;
+    {lower}_service::delete_{lower}(&state.db, {args}, {id_param}).await?;
     Ok(StatusCode::NO_CONTENT)
 }}
 "#,
@@ -1203,6 +1444,14 @@ pub async fn delete_{lower}(
             scoped_path = scoped_path,
             scoped_id_path = scoped_id_path,
             args = args,
+            id_param = id_param,
+            route_path = route_path,
+            item_path = item_path,
+            tag = tag,
+            list_params = list_params,
+            cursor_params = cursor_params,
+            scope_params = scope_params,
+            item_params = item_params,
         );
     }
 
@@ -1211,7 +1460,7 @@ pub async fn delete_{lower}(
 use uuid::Uuid;
 
 use crate::{{
-    error::AppError,
+    error::{{AppError, ErrorResponse}},
     http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Response}},
     http::extractors::AuthUser,
     http::handlers::user_routes::{{Pagination, CursorPagination}},
@@ -1219,6 +1468,18 @@ use crate::{{
     state::AppState,
 }};
 
+#[utoipa::path(
+    get,
+    path = "{route_path}",
+    tag = "{tag}",
+    operation_id = "list{Model}s",
+{list_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} resources returned", body = Vec<{Model}Response>),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn list_{lower}s(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -1228,6 +1489,18 @@ pub async fn list_{lower}s(
     Ok(Json(items.into_iter().map({Model}Response::from).collect()))
 }}
 
+#[utoipa::path(
+    get,
+    path = "{route_path}/cursor",
+    tag = "{tag}",
+    operation_id = "list{Model}sCursor",
+{cursor_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} resources returned", body = Vec<{Model}Response>),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn list_{lower}s_cursor(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -1237,15 +1510,43 @@ pub async fn list_{lower}s_cursor(
     Ok(Json(items.into_iter().map({Model}Response::from).collect()))
 }}
 
+#[utoipa::path(
+    get,
+    path = "{item_path}",
+    tag = "{tag}",
+    operation_id = "get{Model}",
+{item_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} returned", body = {Model}Response),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "{Model} not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn get_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path({id_param}): Path<Uuid>,
 ) -> Result<Json<{Model}Response>, AppError> {{
-    let item = {lower}_service::get_{lower}(&state.db, id).await?;
+    let item = {lower}_service::get_{lower}(&state.db, {id_param}).await?;
     Ok(Json({Model}Response::from(item)))
 }}
 
+#[utoipa::path(
+    post,
+    path = "{route_path}",
+    tag = "{tag}",
+    operation_id = "create{Model}",
+    request_body = Create{Model},
+{scope_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 201, description = "{Model} created", body = {Model}Response),
+        (status = 400, description = "Validation error", body = ErrorResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 409, description = "Conflict", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn create_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
@@ -1255,27 +1556,64 @@ pub async fn create_{lower}(
     Ok((StatusCode::CREATED, Json({Model}Response::from(item))))
 }}
 
+#[utoipa::path(
+    patch,
+    path = "{item_path}",
+    tag = "{tag}",
+    operation_id = "update{Model}",
+    request_body = Update{Model},
+{item_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "{Model} updated", body = {Model}Response),
+        (status = 400, description = "Validation error", body = ErrorResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "{Model} not found", body = ErrorResponse),
+        (status = 409, description = "Conflict", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn update_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path({id_param}): Path<Uuid>,
     Json(payload): Json<Update{Model}>,
 ) -> Result<Json<{Model}Response>, AppError> {{
-    let item = {lower}_service::update_{lower}(&state.db, id, payload).await?;
+    let item = {lower}_service::update_{lower}(&state.db, {id_param}, payload).await?;
     Ok(Json({Model}Response::from(item)))
 }}
 
+#[utoipa::path(
+    delete,
+    path = "{item_path}",
+    tag = "{tag}",
+    operation_id = "delete{Model}",
+{item_params}    security(("bearerAuth" = [])),
+    responses(
+        (status = 204, description = "{Model} deleted"),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "{Model} not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn delete_{lower}(
     _auth: AuthUser,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path({id_param}): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {{
-    {lower}_service::delete_{lower}(&state.db, id).await?;
+    {lower}_service::delete_{lower}(&state.db, {id_param}).await?;
     Ok(StatusCode::NO_CONTENT)
 }}
 "#,
         Model = model,
         lower = lower,
+        id_param = id_param,
+        route_path = route_path,
+        item_path = item_path,
+        tag = tag,
+        list_params = list_params,
+        cursor_params = cursor_params,
+        scope_params = scope_params,
+        item_params = item_params,
     )
 }
 

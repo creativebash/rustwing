@@ -18,6 +18,7 @@ This is a Rustwing SaaS project. Below is the context you need to understand its
 ├── api/                        # Web server (Axum)
 │   ├── src/
 │   │   ├── main.rs             # Entrypoint — connects DB, runs migrations, starts server
+│   │   ├── openapi.rs          # OpenAPI document registration for generated routes
 │   │   ├── state.rs            # AppState (db pool, LLM client, jwt_secret)
 │   │   ├── error.rs            # AppError enum (wraps CoreError + validation)
 │   │   ├── domain/             # Data models (one file per model)
@@ -68,7 +69,7 @@ rustwing g resource product \
   --fields 'price:f64:required:range(0.0,9999.0)'
 ```
 
-This generates: domain model, DTOs (Create/Update/Response), service module, repository impl, route handlers (list/create/get/update/delete with pagination), router injection, and a database migration — all following the project's conventions.
+This generates: domain model, DTOs (Create/Update/Response), service module, repository impl, route handlers (list/create/get/update/delete with pagination), router injection, OpenAPI metadata, and a database migration — all following the project's conventions.
 
 Field syntax:
 
@@ -76,7 +77,7 @@ Field syntax:
 --fields 'name:type:required|optional[:validator]'
 ```
 
-Supported field types: `string`, `int`/`i32`, `i64`, `float`/`f64`, `bool`, `uuid`, `datetime`, `json`/`jsonb`, `ref`.
+Supported field types: `string`, `text`, `int`/`i32`, `i64`, `float`/`f64`, `bool`, `uuid`, `datetime`, `json`/`jsonb`, `ref`.
 
 Useful validator hints: `length(min,max)`, `range(min,max)`, `email`, `url`, `none`, or a raw `validator` crate expression. If no validator is supplied, strings, integers, and floats get sensible defaults.
 
@@ -126,6 +127,20 @@ For data-only models without HTTP endpoints:
 ```
 rustwing g model tag --fields 'name:string:required'
 ```
+
+### OpenAPI and frontend client
+
+Generated apps expose `/openapi.json`, `/docs`, and `/redoc` by default. For generated resources, the CLI updates `api/src/openapi.rs` and adds `utoipa::path` annotations so the docs stay in sync with routes, DTOs, auth, pagination, and scope params.
+
+Use:
+
+```bash
+rustwing g openapi                 # writes openapi/openapi.json
+rustwing g openapi --check         # CI drift check
+rustwing g client typescript       # writes frontend/generated/
+```
+
+For custom routes, add `utoipa::path` annotations and register the handler/schema in `api/src/openapi.rs`.
 
 ### Auth pattern
 
@@ -224,7 +239,8 @@ Do this only when the CLI is blocked or the required change is beyond what it ca
 4. Create service functions in `api/src/services/<name>_service.rs`
 5. Create handlers in `api/src/http/handlers/<name>_routes.rs`
 6. Register routes in `api/src/http/mod.rs`
-7. Create migration SQL file in `api/migrations/`
+7. Register OpenAPI paths/schemas/tags in `api/src/openapi.rs`
+8. Create migration SQL file in `api/migrations/`
 
 ## Framework reference
 

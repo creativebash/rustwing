@@ -4,11 +4,24 @@ use validator::Validate;
 
 use crate::{
     domain::user::User,
-    error::AppError,
+    error::{AppError, ErrorResponse},
     http::dtos::user_dto::{AuthResponse, LoginRequest, RegisterRequest, UserResponse},
     state::AppState,
 };
 
+#[utoipa::path(
+    post,
+    path = "/auth/register",
+    tag = "Auth",
+    operation_id = "register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, description = "User registered", body = AuthResponse),
+        (status = 400, description = "Validation error", body = ErrorResponse),
+        (status = 409, description = "User already exists", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
@@ -36,6 +49,18 @@ pub async fn register(
     ))
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "Auth",
+    operation_id = "login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "User logged in", body = AuthResponse),
+        (status = 401, description = "Invalid credentials", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,

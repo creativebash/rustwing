@@ -26,7 +26,7 @@ Generates new code within an existing project.
 
 ### `rustwing generate resource <name>`
 
-Generates a full REST resource: model, DTOs, service functions, SQLx-native repository glue, handlers, router entries, and migration.
+Generates a full REST resource: model, DTOs, service functions, SQLx-native repository glue, handlers, router entries, OpenAPI metadata, and migration.
 
 ```bash
 rustwing g resource product \
@@ -84,6 +84,60 @@ Scoped mode generates:
 - Service functions that receive scope IDs from the route
 - Scoped repository helpers such as `find_by_org_id`, `find_by_org_id_and_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`
 
+### `rustwing generate openapi`
+
+Exports the generated app OpenAPI document. The command compiles and runs the API binary in OpenAPI export mode, so it does not require `DATABASE_URL` or a live database connection.
+
+```bash
+rustwing g openapi
+```
+
+Default output:
+
+```txt
+openapi/openapi.json
+```
+
+Flags:
+
+| Flag | Behavior |
+|---|---|
+| `--output <path>` | Write the OpenAPI document to a custom path |
+| `--check` | Exit non-zero if the output file is stale |
+| `--stdout` | Print the OpenAPI JSON to stdout |
+
+CI example:
+
+```bash
+rustwing g openapi --check
+```
+
+### `rustwing generate client typescript`
+
+Generates a typed frontend fetch client from the current OpenAPI document.
+
+```bash
+rustwing g client typescript
+```
+
+Default output:
+
+```txt
+frontend/generated/
+```
+
+Generated files:
+
+```txt
+types.ts
+client.ts
+index.ts
+```
+
+The client supports base URL configuration, bearer token injection, typed request/response bodies, typed route params, and generated resource methods such as `api.tickets.create({ orgId, body })`.
+
+Use `--output <dir>` to change the destination.
+
 ### `rustwing generate model <name>`
 
 Generates a domain model, repository trait impl, and migration — no HTTP layer.
@@ -96,7 +150,7 @@ rustwing g model tag --fields 'name:string:required'
 
 | Type | Rust type | SQL type |
 |---|---|---|
-| `string` | `String` | `TEXT` |
+| `string` / `text` | `String` | `TEXT` |
 | `int` / `i32` | `i32` | `INTEGER` |
 | `i64` | `i64` | `BIGINT` |
 | `float` / `f64` | `f64` | `DECIMAL(10,2)` |
