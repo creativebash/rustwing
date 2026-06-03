@@ -2,6 +2,7 @@
 /test_e2e
 /test_project
 /rustwing_*_smoke*
+/.my-workspace
 .env
 .env.local
 .env.*.local
