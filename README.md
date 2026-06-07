@@ -159,6 +159,7 @@ See [ROADMAP.md](ROADMAP.md) for what's coming — job queues, frontend SDK gene
 
 ## Documentation
 
+- [Why Rustwing](docs/why-rustwing.md)
 - [Manifesto](MANIFESTO.md)
 - [Getting started](docs/getting-started.md)
 - [CLI reference](docs/cli-reference.md)

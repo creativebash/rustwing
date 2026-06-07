@@ -4,12 +4,13 @@ Rustwing is an Axum-based Rust application framework with auth, service-first CR
 
 ## Getting started
 
-- [Manifesto](../MANIFESTO.md) — what Rustwing optimizes for and what it refuses to become
-- [Getting started](getting-started.md) — install, create a project, run the API
-- [CLI reference](cli-reference.md) — all `rustwing` commands
-- [OpenAPI and TypeScript client](openapi.md) — interactive docs, contract export, and frontend client generation
-- [Architecture guide](architecture.md) — how the framework works
-- [Configuration reference](configuration.md) — all environment variables
+- [Why Rustwing](why-rustwing.md) - the rationale behind Rustwing's application-framework approach
+- [Manifesto](../MANIFESTO.md) - what Rustwing optimizes for and what it refuses to become
+- [Getting started](getting-started.md) - install, create a project, run the API
+- [CLI reference](cli-reference.md) - all `rustwing` commands
+- [OpenAPI and TypeScript client](openapi.md) - interactive docs, contract export, and frontend client generation
+- [Architecture guide](architecture.md) - how the framework works
+- [Configuration reference](configuration.md) - all environment variables
 
 ## Quick links
 
