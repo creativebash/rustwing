@@ -20,7 +20,7 @@ pub static FILES: &[(&str, &str)] = &[
     ),
     (
         "api/Cargo.toml",
-        "[package]\nname = \"api\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nrustwing = \"0.1\"\naxum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\nuuid = { version = \"1.8\", features = [\"serde\", \"v4\", \"v7\"] }\nchrono = { version = \"0.4\", features = [\"serde\"] }\nthiserror = \"2.0\"\ntracing = \"0.1\"\ntracing-subscriber = { version = \"0.3\", features = [\"env-filter\"] }\ndotenvy = \"0.15\"\nsqlx = { version = \"0.8\", features = [\"postgres\", \"runtime-tokio\", \"uuid\", \"json\", \"chrono\", \"migrate\"] }\nvalidator = { version = \"0.19\", features = [\"derive\"] }\njsonwebtoken = { version = \"10.3\", features = [\"rust_crypto\"] }\nutoipa = { version = \"5\", features = [\"axum_extras\", \"chrono\", \"uuid\"] }\nutoipa-swagger-ui = { version = \"9\", features = [\"axum\", \"vendored\"] }\nutoipa-redoc = { version = \"6\", features = [\"axum\"] }\n",
+        "[package]\nname = \"api\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nrustwing = \"0.1\"\naxum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\nuuid = { version = \"1.8\", features = [\"serde\", \"v4\", \"v7\"] }\nchrono = { version = \"0.4\", features = [\"serde\"] }\nthiserror = \"2.0\"\ntracing = \"0.1\"\ntracing-subscriber = { version = \"0.3\", features = [\"env-filter\"] }\ndotenvy = \"0.15\"\nsqlx = { version = \"0.9\", default-features = false, features = [\"postgres\", \"runtime-tokio\", \"uuid\", \"json\", \"chrono\", \"migrate\", \"macros\"] }\nvalidator = { version = \"0.19\", features = [\"derive\"] }\njsonwebtoken = { version = \"11\", features = [\"rust_crypto\"] }\nutoipa = { version = \"5\", features = [\"axum_extras\", \"chrono\", \"uuid\"] }\nutoipa-swagger-ui = { version = \"9\", features = [\"axum\", \"vendored\"] }\nutoipa-redoc = { version = \"6\", features = [\"axum\"] }\n",
     ),
     (
         "api/migrations/00000000000000_create_trigger_function.sql",
@@ -104,7 +104,7 @@ pub static FILES: &[(&str, &str)] = &[
     ("frontend/.gitkeep", ""),
     (
         "worker/Cargo.toml",
-        "[package]\nname = \"worker\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nrustwing = \"0.1\"\ntokio = { version = \"1\", features = [\"full\"] }\nsqlx = { version = \"0.8\", features = [\"postgres\", \"runtime-tokio\", \"uuid\", \"chrono\"] }\ntracing = \"0.1\"\ntracing-subscriber = { version = \"0.3\", features = [\"env-filter\"] }\ndotenvy = \"0.15\"\n",
+        "[package]\nname = \"worker\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nrustwing = \"0.1\"\ntokio = { version = \"1\", features = [\"full\"] }\nsqlx = { version = \"0.9\", default-features = false, features = [\"postgres\", \"runtime-tokio\", \"uuid\", \"chrono\"] }\ntracing = \"0.1\"\ntracing-subscriber = { version = \"0.3\", features = [\"env-filter\"] }\ndotenvy = \"0.15\"\n",
     ),
     (
         "worker/src/main.rs",

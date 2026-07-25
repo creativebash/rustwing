@@ -10,7 +10,7 @@ pub trait Insertable {
         Some(Uuid::now_v7()) // default: UUID v7, override to return None to opt out
     }
     fn columns() -> Vec<&'static str>;
-    fn bind_values<'a>(&'a self, query: &mut sqlx::QueryBuilder<'a, sqlx::Postgres>);
+    fn bind_values(&self, query: &mut sqlx::QueryBuilder<sqlx::Postgres>);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,8 +20,5 @@ pub enum UpdateResult {
 }
 
 pub trait Updateable {
-    fn bind_updates<'a>(
-        &'a self,
-        query: &mut sqlx::QueryBuilder<'a, sqlx::Postgres>,
-    ) -> UpdateResult;
+    fn bind_updates(&self, query: &mut sqlx::QueryBuilder<sqlx::Postgres>) -> UpdateResult;
 }

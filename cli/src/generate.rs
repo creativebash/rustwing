@@ -1252,7 +1252,7 @@ impl Insertable for Insert{Model} {{
     fn columns() -> Vec<&'static str> {{
         vec![{columns}]
     }}
-    fn bind_values<'a>(&'a self, query: &mut QueryBuilder<'a, Postgres>) {{
+    fn bind_values(&self, query: &mut QueryBuilder<Postgres>) {{
         let mut separated = query.separated(", ");
 {bind_values}    }}
 }}
@@ -1268,7 +1268,7 @@ impl From<Update{Model}> for {Model}Update {{
 }}
 
 impl Updateable for {Model}Update {{
-    fn bind_updates<'a>(&'a self, query: &mut QueryBuilder<'a, Postgres>) -> UpdateResult {{
+    fn bind_updates(&self, query: &mut QueryBuilder<Postgres>) -> UpdateResult {{
         let mut separated = query.separated(", ");
         let mut has_updates = false;
 

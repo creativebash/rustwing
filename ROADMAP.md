@@ -4,6 +4,10 @@ Rustwing's next milestones prioritize trustworthy generated applications over
 adding more integrations. A feature is complete only when the template,
 generator, documentation, and representative generated-project tests agree.
 
+The current dependency baseline is SQLx 0.9, Rig 0.38, and jsonwebtoken 11;
+framework and generated-template manifests are upgraded together so generated
+applications do not drift onto incompatible database or integration APIs.
+
 ## v0.2 — Safety and correctness
 
 ### Security and tenancy

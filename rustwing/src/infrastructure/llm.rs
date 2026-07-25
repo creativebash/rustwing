@@ -188,25 +188,41 @@ pub fn build_client_with_config(provider: &str, model: &str, max_tokens: Option<
         }
         ProviderKind::DeepSeek => {
             tracing::info!("Initializing DeepSeek LLM (model: {})", model);
-            let builder = deepseek::Client::from_env().agent(model);
+            let Ok(client) = deepseek::Client::from_env() else {
+                tracing::warn!("DeepSeek credentials are unavailable; falling back to Stub");
+                return Arc::new(StubClient);
+            };
+            let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
             Arc::new(DeepSeekWrapper { agent })
         }
         ProviderKind::OpenAi => {
             tracing::info!("Initializing OpenAI LLM (model: {})", model);
-            let builder = openai::Client::from_env().agent(model);
+            let Ok(client) = openai::Client::from_env() else {
+                tracing::warn!("OpenAI credentials are unavailable; falling back to Stub");
+                return Arc::new(StubClient);
+            };
+            let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
             Arc::new(OpenAiWrapper { agent })
         }
         ProviderKind::Gemini => {
             tracing::info!("Initializing Gemini LLM (model: {})", model);
-            let builder = gemini::Client::from_env().agent(model);
+            let Ok(client) = gemini::Client::from_env() else {
+                tracing::warn!("Gemini credentials are unavailable; falling back to Stub");
+                return Arc::new(StubClient);
+            };
+            let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
             Arc::new(GeminiWrapper { agent })
         }
         ProviderKind::Anthropic => {
             tracing::info!("Initializing Anthropic LLM (model: {})", model);
-            let builder = anthropic::Client::from_env().agent(model);
+            let Ok(client) = anthropic::Client::from_env() else {
+                tracing::warn!("Anthropic credentials are unavailable; falling back to Stub");
+                return Arc::new(StubClient);
+            };
+            let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
             Arc::new(AnthropicWrapper { agent })
         }

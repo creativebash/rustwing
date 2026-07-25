@@ -1,6 +1,6 @@
 // src/repository/generic_crud.rs
 use crate::{error::CoreError, repository::traits::*};
-use sqlx::{FromRow, PgPool};
+use sqlx::{AssertSqlSafe, FromRow, PgPool};
 use uuid::Uuid;
 
 pub async fn find_all<T>(pool: &PgPool, limit: i64, offset: i64) -> Result<Vec<T>, CoreError>
@@ -11,7 +11,8 @@ where
         "SELECT * FROM {} ORDER BY id LIMIT $1 OFFSET $2",
         T::table_name()
     );
-    let records = sqlx::query_as(&query)
+    // `table_name()` is a framework-controlled identifier, never user input.
+    let records = sqlx::query_as(AssertSqlSafe(query))
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -27,7 +28,7 @@ where
         "SELECT * FROM {} WHERE id > $1 ORDER BY id LIMIT $2",
         T::table_name()
     );
-    let records = sqlx::query_as(&query)
+    let records = sqlx::query_as(AssertSqlSafe(query))
         .bind(after_id)
         .bind(limit)
         .fetch_all(pool)
@@ -40,7 +41,7 @@ where
     T: ModelName + for<'r> FromRow<'r, sqlx::postgres::PgRow> + Send + Unpin,
 {
     let query = format!("SELECT * FROM {} WHERE id = $1", T::table_name());
-    sqlx::query_as(&query)
+    sqlx::query_as(AssertSqlSafe(query))
         .bind(id)
         .fetch_optional(pool)
         .await?
@@ -96,7 +97,10 @@ where
 
 pub async fn delete<T: ModelName>(pool: &PgPool, id: Uuid) -> Result<(), CoreError> {
     let query = format!("DELETE FROM {} WHERE id = $1", T::table_name());
-    let result = sqlx::query(&query).bind(id).execute(pool).await?;
+    let result = sqlx::query(AssertSqlSafe(query))
+        .bind(id)
+        .execute(pool)
+        .await?;
     if result.rows_affected() == 0 {
         Err(CoreError::NotFound)
     } else {
