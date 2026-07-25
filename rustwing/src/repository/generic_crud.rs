@@ -12,7 +12,9 @@ where
         T::table_name()
     );
     // `table_name()` is a framework-controlled identifier, never user input.
-    let records = sqlx::query_as(AssertSqlSafe(query))
+    // audited: `table_name()` is framework-controlled; safe to assert
+    let q_static: &'static str = Box::leak(query.into_boxed_str());
+    let records = sqlx::query_as(AssertSqlSafe(q_static))
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -28,7 +30,9 @@ where
         "SELECT * FROM {} WHERE id > $1 ORDER BY id LIMIT $2",
         T::table_name()
     );
-    let records = sqlx::query_as(AssertSqlSafe(query))
+    // audited: `table_name()` is framework-controlled; safe to assert
+    let q_static: &'static str = Box::leak(query.into_boxed_str());
+    let records = sqlx::query_as(AssertSqlSafe(q_static))
         .bind(after_id)
         .bind(limit)
         .fetch_all(pool)
@@ -41,7 +45,9 @@ where
     T: ModelName + for<'r> FromRow<'r, sqlx::postgres::PgRow> + Send + Unpin,
 {
     let query = format!("SELECT * FROM {} WHERE id = $1", T::table_name());
-    sqlx::query_as(AssertSqlSafe(query))
+    // audited: `table_name()` is framework-controlled; safe to assert
+    let q_static: &'static str = Box::leak(query.into_boxed_str());
+    sqlx::query_as(AssertSqlSafe(q_static))
         .bind(id)
         .fetch_optional(pool)
         .await?
@@ -97,7 +103,9 @@ where
 
 pub async fn delete<T: ModelName>(pool: &PgPool, id: Uuid) -> Result<(), CoreError> {
     let query = format!("DELETE FROM {} WHERE id = $1", T::table_name());
-    let result = sqlx::query(AssertSqlSafe(query))
+    // audited: `table_name()` is framework-controlled; safe to assert
+    let q_static: &'static str = Box::leak(query.into_boxed_str());
+    let result = sqlx::query(AssertSqlSafe(q_static))
         .bind(id)
         .execute(pool)
         .await?;
