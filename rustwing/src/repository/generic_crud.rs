@@ -7,7 +7,10 @@ pub async fn find_all<T>(pool: &PgPool, limit: i64, offset: i64) -> Result<Vec<T
 where
     T: ModelName + for<'r> FromRow<'r, sqlx::postgres::PgRow> + Send + Unpin,
 {
-    let query = format!("SELECT * FROM {} LIMIT $1 OFFSET $2", T::table_name());
+    let query = format!(
+        "SELECT * FROM {} ORDER BY id LIMIT $1 OFFSET $2",
+        T::table_name()
+    );
     let records = sqlx::query_as(&query)
         .bind(limit)
         .bind(offset)

@@ -59,6 +59,10 @@ This regenerates `cli/src/template_data.rs`. Do not edit
   logic directly to handlers.
 - Scope fields for `--tenant` and `--scope` must stay explicit, required, and
   route-driven. Create/update bodies should not accept scope fields.
+- Optional generator fields must remain optional across domain, create, insert,
+  migration, and OpenAPI output. Update DTOs must retain field validators.
+- `id`, `created_at`, and `updated_at` are framework-managed fields and must not
+  be accepted through `--fields`.
 - If a feature is a common project need, prefer adding it to the generator or
   template so future users and agents do less manual work.
 
@@ -94,7 +98,9 @@ Run generator commands from inside a generated project:
 ```bash
 ../target/debug/rustwing g resource post \
   --fields 'title:string:required:length(1,255)' \
-  --fields 'body:string:required'
+  --fields 'body:string:optional' \
+  --fields 'score:f64:required:range(0.0,100.0)' \
+  --fields 'published_at:datetime:optional'
 
 ../target/debug/rustwing g resource ticket \
   --tenant org_id \
@@ -117,7 +123,7 @@ cargo check
 cargo test
 cargo run --bin rustwing -- new test_e2e --local "$(pwd)"
 cd test_e2e
-../target/debug/rustwing g resource post --fields 'title:string:required'
+../target/debug/rustwing g resource post --fields 'title:string:required' --fields 'body:string:optional' --fields 'published_at:datetime:optional'
 ../target/debug/rustwing g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 ../target/debug/rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 cargo check

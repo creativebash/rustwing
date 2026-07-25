@@ -54,6 +54,17 @@ Single-tenant apps should stay simple by default.
 
 SaaS apps should opt into tenant-scoped generation explicitly. Parent-child resources should opt into scoped generation explicitly. Scope should be visible in routes, services, repositories, and SQL.
 
+Route scope is not authorization. Generated applications must verify that the
+authenticated actor may access the requested tenant or parent. Rustwing should
+make that boundary difficult to omit and obvious during review.
+
+### Safe Defaults Are Part of the Product
+
+Generated applications should fail closed when secrets, migrations, or
+provider configuration are invalid. Starter routes must not grant broad access
+merely because a request is authenticated, and sensitive database records must
+not double as public API models.
+
 ### Batteries Included, Ejectable by Default
 
 Auth, CRUD scaffolding, migrations, workers, errors, and LLM hooks should work out of the box.

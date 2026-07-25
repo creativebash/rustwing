@@ -73,7 +73,7 @@ scripts/test-template.sh
 # Test the new command end-to-end manually
 cargo run --bin rustwing -- new test_project
 cd test_project
-cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required' --fields 'body:string:optional' --fields 'published_at:datetime:optional'
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 cargo check
@@ -102,7 +102,9 @@ cd my_test_app
 
 # Generate a single-tenant, service-first resource (from within the project)
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post \
-  --fields 'title:string:required:length(1,255)'
+  --fields 'title:string:required:length(1,255)' \
+  --fields 'body:string:optional' \
+  --fields 'published_at:datetime:optional'
 
 # Generate a tenant-scoped SaaS resource with explicit SQLx repository helpers
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket \
@@ -164,7 +166,7 @@ scripts/test-template.sh
 # Or create a test project and verify it manually
 cargo run --bin rustwing -- new test_project
 cd test_project
-cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required'
+cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource post --fields 'title:string:required' --fields 'body:string:optional' --fields 'published_at:datetime:optional'
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 cargo run --manifest-path ../Cargo.toml --bin rustwing -- g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 cargo check
@@ -183,7 +185,7 @@ cargo build --bin rustwing
 
 # 4. Generate representative resources from inside the project
 cd test_e2e
-../target/debug/rustwing g resource post --fields 'title:string:required'
+../target/debug/rustwing g resource post --fields 'title:string:required' --fields 'body:string:optional' --fields 'published_at:datetime:optional'
 ../target/debug/rustwing g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 ../target/debug/rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 

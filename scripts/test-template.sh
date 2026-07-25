@@ -28,7 +28,9 @@ run_smoke() {
   pushd "$app" > /dev/null
   "$ROOT/target/debug/rustwing" g resource post \
     --fields 'title:string:required:length(1,255)' \
-    --fields 'body:string:required' > /dev/null
+    --fields 'body:string:optional' \
+    --fields 'score:f64:required:range(0.0,100.0)' \
+    --fields 'published_at:datetime:optional' > /dev/null
   "$ROOT/target/debug/rustwing" g resource ticket \
     --tenant org_id \
     --fields 'org_id:uuid:required' \

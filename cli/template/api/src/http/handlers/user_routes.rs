@@ -1,11 +1,4 @@
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::StatusCode,
-};
-use serde::Deserialize;
-use utoipa::{IntoParams, ToSchema};
-use uuid::Uuid;
+use axum::{Json, extract::State, http::StatusCode};
 
 use crate::{
     error::{AppError, ErrorResponse},
@@ -15,51 +8,11 @@ use crate::{
     state::AppState,
 };
 
-#[allow(dead_code)]
-#[derive(Deserialize, IntoParams, ToSchema)]
-#[into_params(parameter_in = Query)]
-pub struct Pagination {
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
-
-#[derive(Deserialize, IntoParams, ToSchema)]
-#[into_params(parameter_in = Query)]
-pub struct CursorPagination {
-    pub after: Option<Uuid>,
-    pub limit: Option<i64>,
-}
-
 #[utoipa::path(
     get,
-    path = "/users/cursor",
+    path = "/users/me",
     tag = "Users",
-    operation_id = "listUsersCursor",
-    params(CursorPagination),
-    security(("bearerAuth" = [])),
-    responses(
-        (status = 200, description = "Users returned", body = Vec<UserResponse>),
-        (status = 401, description = "Unauthorized", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
-    )
-)]
-pub async fn list_users_cursor(
-    _auth: AuthUser,
-    State(state): State<AppState>,
-    Query(params): Query<CursorPagination>,
-) -> Result<Json<Vec<UserResponse>>, AppError> {
-    let users = user_service::list_users_cursor(&state.db, params.after, params.limit).await?;
-    Ok(Json(users.into_iter().map(UserResponse::from).collect()))
-}
-
-#[utoipa::path(
-    get,
-    path = "/users/{id}",
-    tag = "Users",
-    operation_id = "getUser",
-    params(
-        ("id" = Uuid, Path, description = "User ID")
-    ),
+    operation_id = "getCurrentUser",
     security(("bearerAuth" = [])),
     responses(
         (status = 200, description = "User returned", body = UserResponse),
@@ -68,24 +21,20 @@ pub async fn list_users_cursor(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn get_user(
-    _auth: AuthUser,
+pub async fn get_current_user(
+    auth: AuthUser,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
 ) -> Result<Json<UserResponse>, AppError> {
-    let user = user_service::get_user(&state.db, id).await?;
+    let user = user_service::get_user(&state.db, auth.id).await?;
     Ok(Json(UserResponse::from(user)))
 }
 
 #[utoipa::path(
     patch,
-    path = "/users/{id}",
+    path = "/users/me",
     tag = "Users",
-    operation_id = "updateUser",
+    operation_id = "updateCurrentUser",
     request_body = UpdateUser,
-    params(
-        ("id" = Uuid, Path, description = "User ID")
-    ),
     security(("bearerAuth" = [])),
     responses(
         (status = 200, description = "User updated", body = UserResponse),
@@ -96,24 +45,20 @@ pub async fn get_user(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn update_user(
-    _auth: AuthUser,
+pub async fn update_current_user(
+    auth: AuthUser,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
     Json(payload): Json<UpdateUser>,
 ) -> Result<Json<UserResponse>, AppError> {
-    let user = user_service::update_user(&state.db, id, payload).await?;
+    let user = user_service::update_user(&state.db, auth.id, payload).await?;
     Ok(Json(UserResponse::from(user)))
 }
 
 #[utoipa::path(
     delete,
-    path = "/users/{id}",
+    path = "/users/me",
     tag = "Users",
-    operation_id = "deleteUser",
-    params(
-        ("id" = Uuid, Path, description = "User ID")
-    ),
+    operation_id = "deleteCurrentUser",
     security(("bearerAuth" = [])),
     responses(
         (status = 204, description = "User deleted"),
@@ -122,11 +67,10 @@ pub async fn update_user(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
-pub async fn delete_user(
-    _auth: AuthUser,
+pub async fn delete_current_user(
+    auth: AuthUser,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    user_service::delete_user(&state.db, id).await?;
+    user_service::delete_user(&state.db, auth.id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

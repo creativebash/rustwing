@@ -14,9 +14,10 @@ Format: `postgres://<user>:<password>@<host>:<port>/<database>`
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `JWT_SECRET` | No | dev-only fallback | Secret key for signing JWT tokens |
+| `JWT_SECRET` | Yes | — | Secret key for signing JWT tokens |
 
-In production, always set a strong, unique `JWT_SECRET`.
+Rustwing does not provide a fallback JWT secret. Generate a strong, unique
+secret for every environment; the API fails at startup when it is absent.
 
 ## LLM
 

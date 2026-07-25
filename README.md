@@ -14,11 +14,11 @@ Rustwing is a batteries-included framework for developers who want to build prod
 
 ## What you get
 
-- **Auth** — Argon2 password hashing + JWT tokens out of the box
+- **Auth** — service-first Argon2 + JWT authentication with self-only starter account routes
 - **Service-first CRUD scaffolding** — Generate REST endpoints, services, repositories, and migrations
 - **Scoped resources** — Opt into SaaS-style or parent-child routes and SQLx helpers with `--tenant` or `--scope`
 - **API-first by default** — OpenAPI JSON, Swagger UI, ReDoc, and TypeScript client generation for generated APIs
-- **Migrations** — Automatic database migrations on run
+- **Migrations** — Automatic, fail-closed database migrations on run
 - **Background workers** — Wired worker binary with DB pool, LLM client, and tick loop
 - **LLM hooks** — Pluggable AI integrations (DeepSeek, OpenAI, Gemini, Anthropic, local stubs)
 - **Scaffolding CLI** — Generate resources, models, services, repositories, handlers, and routes instantly
@@ -74,6 +74,10 @@ This generates:
 - Router registration
 - Database migration
 
+Optional fields remain optional in create requests and inserts. Validation
+rules apply to both create and update requests, and generated list queries use
+explicit ordering.
+
 ## Generate a scoped resource
 
 For SaaS and parent-child resources, keep single-tenant CRUD as the default and opt into scoped generation explicitly:
@@ -87,6 +91,10 @@ rustwing g resource ticket \
 ```
 
 This generates nested routes like `/orgs/{org_id}/tickets`, plus scoped repository helpers such as `find_by_org_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`.
+
+Route and SQL scoping prevent accidental cross-scope queries, but applications
+must still enforce tenant membership in their services. Rustwing does not treat
+a caller-supplied `org_id` as proof of authorization.
 
 Scopes are not limited to tenants:
 
@@ -142,7 +150,7 @@ my_app/
 | Env var               | Required      | Default           | Description                                                       |
 | --------------------- | ------------- | ----------------- | ----------------------------------------------------------------- |
 | `DATABASE_URL`        | Yes           | —                 | Postgres connection string                                        |
-| `JWT_SECRET`          | No            | dev-only fallback | Secret key for JWT tokens                                         |
+| `JWT_SECRET`          | Yes           | —                 | Strong, unique secret key for JWT tokens                          |
 | `LLM_PROVIDER`        | No            | `stub`            | AI provider (`stub`, `deepseek`, `openai`, `gemini`, `anthropic`) |
 | `LLM_MODEL`           | No            | provider default  | Model name for the selected provider                              |
 | `DEEPSEEK_API_KEY`    | For DeepSeek  | —                 | API key for DeepSeek                                              |

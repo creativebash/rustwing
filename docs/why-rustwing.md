@@ -175,6 +175,10 @@ The scope ID comes from the path, not the request body. Services receive it
 explicitly. Repository helpers include it in SQL filters. OpenAPI documents it
 as a path parameter.
 
+That explicit scope prevents accidental unscoped queries, but it does not
+replace authorization. Applications must verify that the current actor belongs
+to or may access the requested organization, project, or parent resource.
+
 For non-tenant parent-child routes, use `--scope`:
 
 ```bash

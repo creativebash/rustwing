@@ -7,7 +7,6 @@ use uuid::Uuid;
 #[derive(Debug, Serialize, FromRow, ToSchema, Clone)]
 pub struct User {
     pub id: Uuid,
-    pub password_hash: String,
     pub username: String,
     pub email: String,
     pub credit_balance: i32,

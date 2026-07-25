@@ -87,3 +87,41 @@ fn escape_path(path: &Path) -> String {
     let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
     format!("\"{}\"", escaped)
 }
+
+#[cfg(test)]
+mod tests {
+    fn template(path: &str) -> &'static str {
+        crate::template_data::FILES
+            .iter()
+            .find_map(|(candidate, content)| (*candidate == path).then_some(*content))
+            .unwrap_or_else(|| panic!("missing embedded template: {path}"))
+    }
+
+    #[test]
+    fn starter_accounts_are_self_only() {
+        let routes = template("api/src/http/handlers/user_routes.rs");
+
+        assert!(routes.contains("path = \"/users/me\""));
+        assert!(!routes.contains("path = \"/users/{id}\""));
+        assert!(!routes.contains("list_users"));
+    }
+
+    #[test]
+    fn public_user_model_cannot_serialize_password_hashes() {
+        let user = template("api/src/domain/user.rs");
+        let record = template("api/src/repository/user_repo.rs");
+
+        assert!(!user.contains("password_hash"));
+        assert!(record.contains("struct UserRecord"));
+        assert!(record.contains("password_hash"));
+    }
+
+    #[test]
+    fn startup_configuration_and_migrations_fail_closed() {
+        let main = template("api/src/main.rs");
+
+        assert!(main.contains("JWT_SECRET must be set"));
+        assert!(!main.contains("super_secret_dev_key_change_me"));
+        assert!(!main.contains("DELETE FROM _sqlx_migrations"));
+    }
+}

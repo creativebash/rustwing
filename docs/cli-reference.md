@@ -83,6 +83,11 @@ Scoped mode generates:
 - Create/update DTOs that do not accept scope fields from the request body
 - Service functions that receive scope IDs from the route
 - Scoped repository helpers such as `find_by_org_id`, `find_by_org_id_and_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`
+- A migration index matching the generated scope columns
+
+Scope keeps generated SQL within the requested tenant or parent, but it does
+not authorize the caller. Add a service policy that verifies the authenticated
+actor's membership or access before calling the scoped repository.
 
 ### `rustwing generate openapi`
 
@@ -153,7 +158,7 @@ rustwing g model tag --fields 'name:string:required'
 | `string` / `text` | `String` | `TEXT` |
 | `int` / `i32` | `i32` | `INTEGER` |
 | `i64` | `i64` | `BIGINT` |
-| `float` / `f64` | `f64` | `DECIMAL(10,2)` |
+| `float` / `f64` | `f64` | `DOUBLE PRECISION` |
 | `bool` | `bool` | `BOOLEAN` |
 | `uuid` | `Uuid` | `UUID` |
 | `datetime` | `DateTime<Utc>` | `TIMESTAMPTZ` |
@@ -165,6 +170,10 @@ rustwing g model tag --fields 'name:string:required'
 ```
 name:type:required|optional[:validator]
 ```
+
+Optional fields are emitted as `Option<T>` in domain, create, and insert
+types. Update DTOs retain configured validators. The names `id`, `created_at`,
+and `updated_at` are reserved because Rustwing manages them.
 
 The `ref` type auto-derives the foreign table name from the field name (`user_id` → `users`).
 

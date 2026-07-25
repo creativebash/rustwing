@@ -1,41 +1,131 @@
 # Roadmap
 
-## v0.2 — Polish & hardening
+Rustwing's next milestones prioritize trustworthy generated applications over
+adding more integrations. A feature is complete only when the template,
+generator, documentation, and representative generated-project tests agree.
 
-- [x] **Service-first generation** — generated resources now include `services/<name>_service.rs`; handlers call services instead of jumping straight to repositories.
-- [x] **Executable worker scaffold** — generated workers now wire `PgPool`, `LlmRef`, `WorkerState`, and a configurable tick loop.
-- [x] **Stub LLM provider polish** — `LLM_PROVIDER=stub` is a first-class provider and no longer logs an "unknown provider" warning.
-- [x] **Scoped resource generation** — `rustwing g resource ... --scope ticket_id` and `--tenant org_id` generate nested routes and scoped SQLx repository helpers.
-- [x] **Nullable PATCH helper** — `Nullable<T>` documents and supports missing/null/value update semantics.
-- [ ] **Cursor pagination fix** — currently relies on UUID ordering (`WHERE id > $1`). Should use a dedicated `sort_order` column or `created_at` for predictable pagination.
-- [ ] **`password_hash` isolation** — `User` domain model includes `password_hash` via `FromRow`. One `UserResponse::from()` bug away from leaking hashes into API responses. Either exclude it from the response conversion or use a separate DB-only struct.
-- [ ] **Soft deletes** — add a `deleted_at` column pattern to `generic_crud`.
-- [ ] **Rate limiting** — add `tower` middleware for per-endpoint rate limits.
-- [ ] **Request ID tracing** — add a unique request ID to every log line.
-- [ ] **Feature flags on `rustwing`** — `rig-core` (LLM) and `argon2` (auth) as optional features.
+## v0.2 — Safety and correctness
 
-## v0.3 — Background jobs
+### Security and tenancy
 
-- [ ] **Worker crate implementation** — Postgres-based job queue using `LISTEN/NOTIFY` + advisory locks. No Redis dependency.
-- [ ] **`rustwing g job process_payment`** — scaffold a new background job type.
-- [ ] **Job retry with backoff** — configurable retry strategy in the worker.
+- [x] **Self-only account routes** — the starter app exposes `/users/me`
+  instead of allowing any authenticated user to read, update, or delete an
+  arbitrary user ID.
+- [x] **Password-record isolation** — password hashes live in a database-only
+  `UserRecord`; public domain and response models cannot serialize them.
+- [x] **Service-first auth** — registration and login validation,
+  password work, SQL, and token creation live in the auth service.
+- [x] **Async-safe password work** — Argon2 hashing and verification run on
+  Tokio's blocking pool instead of blocking request executors.
+- [x] **Required JWT configuration** — generated APIs fail at startup when
+  `JWT_SECRET` is absent instead of using a shared fallback.
+- [ ] **Tenant membership authorization** — generated `--tenant` resources
+  must verify that the current user belongs to the tenant; route/query scope
+  alone is not an authorization boundary.
+- [ ] **Auth lifecycle** — issuer/audience claims, key rotation, refresh
+  sessions, revocation, password-hash upgrades, and login/register rate limits.
 
-## v0.4 — Frontend SDK
+### Database and API correctness
 
-- [ ] **`rustwing g resource` emits TypeScript types** — alongside the Rust code, generate a `typescript/types.ts` with interfaces for all DTOs.
-- [x] **OpenAPI spec generation** — generated apps expose `/openapi.json`, `/docs`, and `/redoc`, with resource metadata injected by the CLI.
-- [x] **Generated API client** — `rustwing g client typescript` emits a typed fetch client from the OpenAPI document.
+- [x] **Migration immutability** — generated applications fail closed on
+  missing or divergent applied migrations; startup never edits SQLx history.
+- [x] **Optional create fields** — `optional` fields are optional in create
+  DTOs and inserts as well as in domain/database models.
+- [x] **Validated updates** — generated PATCH/PUT DTOs preserve field
+  validators and services validate them before database writes.
+- [x] **Datetime and numeric mappings** — user-defined datetime fields are
+  generated normally, reserved framework fields are rejected, and `f64` maps
+  to PostgreSQL `DOUBLE PRECISION`.
+- [x] **Deterministic offset pagination** — generic and scoped list queries
+  use explicit ID ordering.
+- [x] **Scope indexes** — scoped resource migrations create indexes matching
+  their generated filters.
+- [ ] **Stable cursor pagination** — replace UUID-only cursors with an opaque
+  `(created_at, id)` cursor and matching indexes.
+- [ ] **Nullable PATCH generation** — generate `Nullable<T>` for nullable
+  fields that clients must be able to clear.
+- [ ] **Soft deletes** — add an explicit `deleted_at` generator pattern and
+  CRUD filtering rules.
 
-## v0.5 — SaaS features
+### Runtime hardening
 
-- [ ] **Billing trait** — Stripe integration with idempotent webhook verification.
-- [ ] **Email trait** — transactional email abstraction (SMTP / Sendgrid / Resend).
-- [ ] **File storage trait** — S3-compatible storage (local fs in dev, S3 in prod).
-- [ ] **Tenant isolation** — multi-tenant support baked into `generic_crud` filters.
+- [ ] **Typed startup configuration** — validate environment-specific
+  settings, pool sizes, ports, secrets, and provider configuration together.
+- [ ] **HTTP production defaults** — request IDs, graceful shutdown, body
+  limits, timeouts, sensitive-header redaction, and configurable CORS.
+- [ ] **Rate limiting** — provide Tower-based global and endpoint policies.
+- [ ] **Health model** — separate liveness and dependency-aware readiness.
+- [ ] **Feature flags** — make auth and LLM dependencies optional so minimal
+  applications do not compile unused provider stacks.
+- [ ] **LLM failure safety** — invalid providers/configuration must fail
+  startup; prompts must not be logged by default.
 
-## Future ideas
+### Verification
 
-- Hot reload for development (`cargo watch` integration)
-- WebSocket channel scaffold (`rustwing g channel chat`)
-- Admin dashboard generator
-- One-click deploy to Railway / Fly.io / Shuttle
+- [ ] **PostgreSQL integration suite** — execute generated migrations and
+  CRUD operations for every supported field type.
+- [ ] **HTTP security suite** — cover authentication, self-only accounts,
+  tenant isolation, validation, malformed input, and conflict responses.
+- [ ] **Generator golden tests** — snapshot normal, optional, scoped,
+  multi-scoped, model-only, and failure cases.
+- [ ] **Contract tests** — validate exported OpenAPI and compile generated
+  TypeScript with `tsc --noEmit`.
+- [ ] **Supply-chain checks** — add dependency policy/advisory checks and
+  semantic-version compatibility checks to releases.
+
+## v0.3 — Generator lifecycle and upgrades
+
+- [ ] **Structured resource specification** — parse CLI input into one typed
+  intermediate representation used by Rust, SQL, OpenAPI, and client output.
+- [ ] **Atomic generation** — stage and validate the complete change set
+  before modifying an application.
+- [ ] **`rustwing g ... --dry-run` and `--json`** — make generated plans
+  inspectable by people, CI, and coding agents.
+- [ ] **Scaffold version metadata** — record which template version created
+  an application.
+- [ ] **`rustwing doctor`** — diagnose configuration, migration, template,
+  dependency, OpenAPI, and generated-code drift.
+- [ ] **Upgrade assistance** — provide focused diagnostics and codemods
+  without taking ownership away from applications.
+- [ ] **Typed Clap subcommands** — replace stringly generator dispatch with
+  testable command types returning normal `Result` values.
+
+## v0.4 — Reliable background jobs
+
+- [ ] **PostgreSQL job queue** — durable claims using PostgreSQL locking
+  primitives, without requiring Redis.
+- [ ] **`rustwing g job process_payment`** — scaffold typed job payloads and
+  handlers.
+- [ ] **Retries and dead letters** — bounded exponential backoff, attempt
+  history, lease expiry, crash recovery, and dead-letter handling.
+- [ ] **Transactional outbox** — enqueue work in the same transaction as
+  application state changes.
+- [ ] **Job observability** — tracing, metrics, queue depth, latency, and
+  failure inspection.
+
+## v0.5 — Contract and client ecosystem
+
+- [x] **OpenAPI spec generation** — generated apps expose `/openapi.json`,
+  `/docs`, and `/redoc`.
+- [x] **Generated TypeScript client** — `rustwing g client typescript` emits
+  a typed fetch client from the runtime contract.
+- [ ] **Client compatibility gates** — detect breaking OpenAPI changes in CI.
+- [ ] **Streaming and realtime patterns** — documented/generated SSE,
+  WebSocket, and streaming-response slices where Axum remains visible.
+
+## Later — Optional application batteries
+
+These should follow the safety, upgrade, and job foundations:
+
+- Billing and idempotent webhook verification
+- Transactional email providers
+- S3-compatible file storage
+- Deployment presets for common Rust hosts
+- Admin interfaces built on stable public contracts
+- LLM streaming, tool calls, structured output, and provider telemetry
+
+## Non-goals
+
+Rustwing will not become an ORM, hide Axum, introduce a private query
+language, or require a proprietary runtime. Generated code remains explicit,
+editable, SQLx-native application code.

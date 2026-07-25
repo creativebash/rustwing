@@ -105,6 +105,12 @@ impl Field {
 
         let name = parts[0].to_string();
         validate_identifier(&name, "field name")?;
+        if matches!(name.as_str(), "id" | "created_at" | "updated_at") {
+            return Err(format!(
+                "Invalid field name '{}': this field is managed by Rustwing.",
+                name
+            ));
+        }
 
         let type_str = parts[1].to_lowercase();
         let is_required = match parts[2].to_lowercase().as_str() {
@@ -123,7 +129,7 @@ impl Field {
             "string" | "text" => ("String".to_string(), "TEXT".to_string()),
             "int" | "i32" => ("i32".to_string(), "INTEGER".to_string()),
             "i64" => ("i64".to_string(), "BIGINT".to_string()),
-            "float" | "f64" => ("f64".to_string(), "DECIMAL(10,2)".to_string()),
+            "float" | "f64" => ("f64".to_string(), "DOUBLE PRECISION".to_string()),
             "bool" => ("bool".to_string(), "BOOLEAN".to_string()),
             "uuid" => ("Uuid".to_string(), "UUID".to_string()),
             "datetime" => ("DateTime<Utc>".to_string(), "TIMESTAMPTZ".to_string()),
@@ -211,7 +217,7 @@ impl Field {
     }
 
     fn is_auto(&self) -> bool {
-        (self.rust_type == "DateTime<Utc>") || (self.rust_type == "Uuid" && self.name == "id")
+        matches!(self.name.as_str(), "id" | "created_at" | "updated_at")
     }
 }
 
@@ -542,7 +548,10 @@ pub fn run(
 
     let trigger_path = m_dir.join("00000000000000_create_trigger_function.sql");
     create_file_if_missing(&trigger_path, TRIGGER_FUNCTION_SQL);
-    create_file(&migration_path, &table_migration_sql(&table_name, &fields));
+    create_file(
+        &migration_path,
+        &table_migration_sql(&table_name, &fields, &scopes),
+    );
 
     println!();
     println!("✅ Done!");
@@ -816,12 +825,28 @@ fn next_migration_version(m_dir: &Path) -> String {
     format!("{:014}", max_ver + 1)
 }
 
-fn table_migration_sql(table: &str, fields: &[Field]) -> String {
+fn table_migration_sql(table: &str, fields: &[Field], scopes: &[ScopeConfig]) -> String {
     let col_defs: String = fields
         .iter()
         .filter(|f| !f.is_auto())
         .map(|f| format!("{},\n", f.sql_column_def()))
         .collect();
+
+    let scope_index = if scopes.is_empty() {
+        String::new()
+    } else {
+        let columns = scopes
+            .iter()
+            .map(|scope| scope.field.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suffix = scopes
+            .iter()
+            .map(|scope| scope.field.as_str())
+            .collect::<Vec<_>>()
+            .join("_");
+        format!("\n\nCREATE INDEX IF NOT EXISTS idx_{table}_{suffix} ON {table} ({columns});")
+    };
 
     format!(
         r#"-- Create {table} table
@@ -834,9 +859,10 @@ CREATE TABLE IF NOT EXISTS {table} (
 DROP TRIGGER IF EXISTS set_timestamp ON {table};
 CREATE TRIGGER set_timestamp
 BEFORE UPDATE ON {table}
-FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();"#,
+FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();{scope_index}"#,
         table = table,
         col_defs = col_defs,
+        scope_index = scope_index,
     )
 }
 
@@ -887,9 +913,14 @@ fn dto_template(model: &str, lower: &str, fields: &[Field], scopes: &[ScopeConfi
         .map(|f| {
             let attr = f.validator_attr();
             if attr.is_empty() {
-                format!("    pub {}: {},\n", f.name, f.rust_type)
+                format!("    pub {}: {},\n", f.name, f.rust_field_type())
             } else {
-                format!("    {}\n    pub {}: {},\n", attr, f.name, f.rust_type)
+                format!(
+                    "    {}\n    pub {}: {},\n",
+                    attr,
+                    f.name,
+                    f.rust_field_type()
+                )
             }
         })
         .collect();
@@ -897,7 +928,17 @@ fn dto_template(model: &str, lower: &str, fields: &[Field], scopes: &[ScopeConfi
     let update_fields: String = fields
         .iter()
         .filter(|f| !f.is_auto() && !is_scope_field(f))
-        .map(|f| format!("    pub {}: Option<{}>,\n", f.name, f.rust_type))
+        .map(|f| {
+            let attr = f.validator_attr();
+            if attr.is_empty() {
+                format!("    pub {}: Option<{}>,\n", f.name, f.rust_type)
+            } else {
+                format!(
+                    "    {}\n    pub {}: Option<{}>,\n",
+                    attr, f.name, f.rust_type
+                )
+            }
+        })
         .collect();
 
     let response_fields: String = fields
@@ -923,7 +964,7 @@ use crate::domain::{lower}::{Model};
 pub struct Create{Model} {{
 {create_fields}}}
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Validate, ToSchema)]
 #[schema(as = Update{Model}Request)]
 pub struct Update{Model} {{
 {update_fields}}}
@@ -991,7 +1032,7 @@ pub async fn find_by_{suffix}(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<{Model}>, CoreError> {{
-    let query = "SELECT * FROM {table} WHERE {where_clause} LIMIT ${list_limit_idx} OFFSET ${list_offset_idx}";
+    let query = "SELECT * FROM {table} WHERE {where_clause} ORDER BY id LIMIT ${list_limit_idx} OFFSET ${list_offset_idx}";
     let records = sqlx::query_as(query)
 {scope_binds}        .bind(limit)
         .bind(offset)
@@ -1124,7 +1165,7 @@ fn repo_template(
 
         let insert_fields: String = data_fields
             .iter()
-            .map(|f| format!("    pub {}: {},\n", f.name, f.rust_type))
+            .map(|f| format!("    pub {}: {},\n", f.name, f.rust_field_type()))
             .collect();
 
         let update_fields: String = data_fields
@@ -1248,6 +1289,14 @@ impl Updateable for {Model}Update {{
         String::new()
     };
 
+    let chrono_import = if fields
+        .iter()
+        .any(|field| field.rust_type == "DateTime<Utc>")
+    {
+        "use chrono::{DateTime, Utc};\n"
+    } else {
+        ""
+    };
     let sqlx_import = if gen_type == "resource" && !scopes.is_empty() {
         "use sqlx::{PgPool, Postgres, QueryBuilder};\nuse uuid::Uuid;\n"
     } else if gen_type == "resource" {
@@ -1257,7 +1306,7 @@ impl Updateable for {Model}Update {{
     };
 
     format!(
-        r#"{sqlx_import}use rustwing::prelude::*;
+        r#"{chrono_import}{sqlx_import}use rustwing::prelude::*;
 {imports}
 
 impl ModelName for {Model} {{
@@ -1268,6 +1317,7 @@ impl ModelName for {Model} {{
         table = table,
         imports = imports,
         resource_impls = resource_impls,
+        chrono_import = chrono_import,
         sqlx_import = sqlx_import,
     )
 }
@@ -1295,7 +1345,7 @@ use crate::{{
     error::{{AppError, ErrorResponse}},
     http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Response}},
     http::extractors::AuthUser,
-    http::handlers::user_routes::{{Pagination, CursorPagination}},
+    http::pagination::{{CursorPagination, Pagination}},
     services::{lower}_service,
     state::AppState,
 }};
@@ -1463,7 +1513,7 @@ use crate::{{
     error::{{AppError, ErrorResponse}},
     http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Response}},
     http::extractors::AuthUser,
-    http::handlers::user_routes::{{Pagination, CursorPagination}},
+    http::pagination::{{CursorPagination, Pagination}},
     services::{lower}_service,
     state::AppState,
 }};
@@ -1692,6 +1742,7 @@ pub async fn update_{lower}(
     id: Uuid,
     payload: Update{Model},
 ) -> Result<{Model}, AppError> {{
+    payload.validate()?;
     let update = {Model}Update::from(payload);
     Ok({lower}_repo::update_by_{suffix}_and_id(db, {args}, id, &update).await?)
 }}
@@ -1772,6 +1823,7 @@ pub async fn update_{lower}(
     id: Uuid,
     payload: Update{Model},
 ) -> Result<{Model}, AppError> {{
+    payload.validate()?;
     let update = {Model}Update::from(payload);
     Ok(generic_crud::update::<{Model}, {Model}Update>(db, id, &update).await?)
 }}
@@ -1815,6 +1867,76 @@ mod tests {
         let err = Field::from_arg("not-valid:string:required").unwrap_err();
 
         assert!(err.contains("field name"));
+    }
+
+    #[test]
+    fn maps_optional_datetime_and_float_fields_consistently() {
+        let optional = Field::from_arg("summary:string:optional").unwrap();
+        let published_at = Field::from_arg("published_at:datetime:optional").unwrap();
+        let score = Field::from_arg("score:f64:required").unwrap();
+
+        assert_eq!(optional.rust_field_type(), "Option<String>");
+        assert_eq!(published_at.rust_field_type(), "Option<DateTime<Utc>>");
+        assert!(!published_at.is_auto());
+        assert_eq!(score.sql_type, "DOUBLE PRECISION");
+
+        let repository = repo_template(
+            "Post",
+            "post",
+            "posts",
+            "resource",
+            &[optional.clone(), published_at.clone(), score.clone()],
+            &[],
+        );
+        assert!(repository.starts_with("use chrono::{DateTime, Utc};"));
+
+        let migration = table_migration_sql("posts", &[optional, published_at, score], &[]);
+        assert!(migration.contains("published_at TIMESTAMPTZ"));
+    }
+
+    #[test]
+    fn rejects_framework_managed_fields() {
+        for name in ["id", "created_at", "updated_at"] {
+            let err = Field::from_arg(&format!("{name}:uuid:required")).unwrap_err();
+            assert!(err.contains("managed by Rustwing"));
+        }
+    }
+
+    #[test]
+    fn generated_dtos_keep_optional_and_update_validation_semantics() {
+        let fields = vec![
+            Field::from_arg("title:string:required:length(1,80)").unwrap(),
+            Field::from_arg("summary:string:optional:length(1,255)").unwrap(),
+        ];
+        let output = dto_template("Post", "post", &fields, &[]);
+
+        assert!(output.contains("pub summary: Option<String>"));
+        assert!(output.contains("#[derive(Deserialize, Validate, ToSchema)]"));
+        assert!(output.contains("pub title: Option<String>"));
+        assert!(output.contains("#[validate(length(min = 1, max = 80))]"));
+    }
+
+    #[test]
+    fn scoped_migrations_include_matching_indexes() {
+        let fields = vec![
+            Field::from_arg("org_id:uuid:required").unwrap(),
+            Field::from_arg("ticket_id:uuid:required").unwrap(),
+        ];
+        let scopes = build_scopes(Some("org_id"), &["ticket_id".to_string()]).unwrap();
+        let sql = table_migration_sql("notes", &fields, &scopes);
+
+        assert!(sql.contains(
+            "CREATE INDEX IF NOT EXISTS idx_notes_org_id_ticket_id \
+             ON notes (org_id, ticket_id);"
+        ));
+    }
+
+    #[test]
+    fn generated_handlers_use_shared_pagination_types() {
+        let output = handler_template("Post", "post", &[]);
+
+        assert!(output.contains("http::pagination::{CursorPagination, Pagination}"));
+        assert!(!output.contains("user_routes::{Pagination"));
     }
 
     #[test]

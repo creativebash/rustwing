@@ -25,10 +25,9 @@ use crate::{
         root::health,
         auth_routes::register,
         auth_routes::login,
-        user_routes::list_users_cursor,
-        user_routes::get_user,
-        user_routes::update_user,
-        user_routes::delete_user,
+        user_routes::get_current_user,
+        user_routes::update_current_user,
+        user_routes::delete_current_user,
         // rustwing:openapi-paths
     ),
     components(
@@ -41,7 +40,6 @@ use crate::{
             UpdateUser,
             AuthResponse,
             UserResponse,
-            user_routes::CursorPagination,
             // rustwing:openapi-schemas
         )
     ),

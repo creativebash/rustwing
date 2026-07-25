@@ -53,7 +53,7 @@ cargo run --bin api
 
 The server:
 1. Connects to Postgres
-2. Runs pending migrations (creates tables automatically)
+2. Runs pending migrations (and fails if applied migration history has drifted)
 3. Starts listening on `http://0.0.0.0:3000`
 4. Serves OpenAPI docs at `http://localhost:3000/docs` and `http://localhost:3000/redoc`
 
@@ -78,14 +78,14 @@ TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"demo@test.com","password":"password123"}' | jq -r '.token')
 
-# List users (authenticated)
-curl http://localhost:3000/users/cursor \
-  -H "Authorization: Bearer $TOKEN"
-
-# Get user by ID
-curl http://localhost:3000/users/<id> \
+# Read the authenticated account
+curl http://localhost:3000/users/me \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+The starter account endpoints are self-only. A valid token does not grant
+access to other accounts; application-specific admin or directory endpoints
+should be added with an explicit authorization policy.
 
 ## Generate a resource
 
@@ -126,6 +126,9 @@ rustwing g resource ticket \
 ```
 
 This generates routes like `/orgs/{org_id}/tickets`. The tenant ID comes from the path, so create/update request bodies do not include `org_id`.
+
+The generated route and repository remain scoped to that ID, but your service
+must also verify that the authenticated user belongs to the organization.
 
 Scopes also work for parent-child resources:
 

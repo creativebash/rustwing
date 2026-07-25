@@ -93,7 +93,7 @@ impl Updateable for ProductUpdate {
 
 | Function | SQL | Pagination |
 |---|---|---|
-| `generic_crud::find_all::<T>` | `SELECT * FROM table LIMIT $1 OFFSET $2` | Offset |
+| `generic_crud::find_all::<T>` | `SELECT * FROM table ORDER BY id LIMIT $1 OFFSET $2` | Offset |
 | `generic_crud::find_after::<T>` | `SELECT * FROM table WHERE id > $1 ORDER BY id LIMIT $2` | Cursor |
 | `generic_crud::find_by_id::<T>` | `SELECT * FROM table WHERE id = $1` | — |
 | `generic_crud::insert::<T, I>` | `INSERT INTO table (...) VALUES (...) RETURNING *` | — |
@@ -102,11 +102,14 @@ impl Updateable for ProductUpdate {
 
 ## Auth
 
-Authentication uses Argon2 for password hashing and JWT for session tokens. The `AuthUser` extractor enforces authentication on any handler:
+Authentication uses Argon2 for password hashing and JWT for session tokens.
+Argon2 work runs on Tokio's blocking pool. Password hashes live in a
+database-only `UserRecord`, while `User` and `UserResponse` contain public
+account data. The `AuthUser` extractor enforces authentication on handlers:
 
 ```rust
 pub async fn get_profile(
-    auth: AuthUser,          // ← rejects unauthenticated requests
+    auth: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<UserResponse>, AppError> {
     let user = generic_crud::find_by_id::<User>(&state.db, auth.id).await?;
@@ -114,7 +117,9 @@ pub async fn get_profile(
 }
 ```
 
-Public routes (like `register` and `login`) omit the `AuthUser` parameter.
+Public routes (like `register` and `login`) omit the `AuthUser` parameter. The
+starter exposes self-only `/users/me` operations. Authentication alone is
+never used as permission to operate on an arbitrary user ID.
 
 ## Services
 
@@ -169,6 +174,10 @@ This generates routes like:
 ```
 
 Generated repository helpers include scope filters on list, get, update, and delete operations, for example `find_by_org_id_and_ticket_id` and `delete_by_org_id_and_ticket_id_and_id`.
+
+Scoped migrations also create a composite index matching the generated scope
+filter. Scope remains a data-access boundary, not proof of membership:
+services must authorize the current actor for every tenant or parent scope.
 
 ## OpenAPI
 

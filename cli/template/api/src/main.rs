@@ -7,7 +7,6 @@ mod services;
 mod state;
 
 use rustwing::infrastructure::llm::{build_client_with_config, default_model_for_provider};
-use sqlx::migrate::MigrateError;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -46,18 +45,14 @@ async fn main() {
     let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
     let model = std::env::var("LLM_MODEL")
         .unwrap_or_else(|_| default_model_for_provider(&provider).to_string());
-    let max_tokens = std::env::var("LLM_MAX_TOKENS").ok().and_then(|v| v.parse().ok());
+    let max_tokens = std::env::var("LLM_MAX_TOKENS")
+        .ok()
+        .and_then(|v| v.parse().ok());
     let llm = build_client_with_config(&provider, &model, max_tokens);
 
-    let jwt_secret = match std::env::var("JWT_SECRET") {
-        Ok(secret) => secret,
-        Err(_) => {
-            tracing::warn!(
-                "JWT_SECRET is not set; using an insecure development fallback. Set JWT_SECRET before production."
-            );
-            "super_secret_dev_key_change_me".to_string()
-        }
-    };
+    let jwt_secret = std::env::var("JWT_SECRET").expect(
+        "JWT_SECRET must be set. Generate a strong, unique secret; no insecure fallback is used.",
+    );
 
     let state = state::AppState {
         db: pool,
@@ -74,25 +69,8 @@ async fn main() {
 }
 
 async fn run_migrations(pool: &sqlx::PgPool) {
-    match sqlx::migrate!("./migrations").run(pool).await {
-        Ok(_) => {}
-        Err(MigrateError::VersionMissing(version)) => {
-            tracing::warn!(
-                "Migration version {} was applied but file not found. Removing stale tracking entry.",
-                version
-            );
-            sqlx::query("DELETE FROM _sqlx_migrations WHERE version = $1")
-                .bind(version as i64)
-                .execute(pool)
-                .await
-                .expect("Failed to clean stale migration entry");
-            sqlx::migrate!("./migrations")
-                .run(pool)
-                .await
-                .expect("Failed to run migrations after cleanup");
-        }
-        Err(e) => {
-            panic!("Failed to run migrations: {}", e);
-        }
-    }
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+        .expect("Failed to run migrations. Applied migrations are immutable; restore any missing migration file instead of editing SQLx history.");
 }
