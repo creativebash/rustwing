@@ -70,6 +70,9 @@ impl IntoResponse for AppError {
             AppError::Core(CoreError::Unauthorized) => {
                 (StatusCode::UNAUTHORIZED, error_response("unauthorized", "You must be logged in to access this resource")).into_response()
             }
+            AppError::Core(CoreError::Forbidden) => {
+                (StatusCode::FORBIDDEN, error_response("forbidden", "You do not have access to this tenant")).into_response()
+            }
             AppError::Core(CoreError::Internal(msg)) => {
                 tracing::error!("Internal error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, error_response("internal_server_error", "Internal server error")).into_response()

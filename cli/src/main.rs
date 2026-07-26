@@ -1,19 +1,22 @@
+mod doctor;
 mod generate;
 mod new;
 mod openapi_export;
 mod template_data;
 mod ts_client;
+mod upgrade;
 
 use clap::{Parser, Subcommand};
 use std::path::Path;
 use std::process::Command;
 
 // When releasing: bump CLI_VERSION in cli/Cargo.toml, bump FRAMEWORK_VERSION below
+const FRAMEWORK_VERSION: &str = "0.1.8";
 const VERSION_INFO: &str = concat!(
     "CLI ",
     env!("CARGO_PKG_VERSION"),
     "\nrustwing framework ",
-    "0.1.7", // FRAMEWORK_VERSION — bump when rustwing/ releases
+    "0.1.8", // FRAMEWORK_VERSION — bump when rustwing/ releases
 );
 
 #[derive(Parser)]
@@ -35,6 +38,14 @@ enum Commands {
     },
     /// Run the API server (cargo run --bin api)
     Run,
+    /// Inspect a generated project for upgrade and configuration drift
+    Doctor,
+    /// Preview or apply a verified framework dependency upgrade
+    Upgrade {
+        /// Apply the upgrade after updating the lockfile and passing cargo check
+        #[arg(long)]
+        apply: bool,
+    },
     /// Generate a resource, model, etc.
     #[command(alias = "g")]
     Generate {
@@ -68,6 +79,8 @@ fn main() {
     match cli.command {
         Commands::New { name, local } => new::run(&name, local.as_deref()),
         Commands::Run => run(),
+        Commands::Doctor => doctor::run(),
+        Commands::Upgrade { apply } => upgrade::run(apply),
         Commands::Generate {
             r#type,
             name,

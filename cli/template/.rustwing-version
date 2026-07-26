@@ -1,0 +1,4 @@
+format = 1
+cli_version = "{{cli_version}}"
+framework_version = "{{framework_version}}"
+template_version = "{{cli_version}}"

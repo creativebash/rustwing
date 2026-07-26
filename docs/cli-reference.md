@@ -10,6 +10,39 @@ rustwing new my_app
 
 Generates a complete workspace with an API server, a DB/LLM-backed worker tick loop, and a frontend directory.
 
+The scaffold includes `.rustwing-version`, recording the CLI, framework, and
+template versions used to create it.
+
+## `rustwing doctor`
+
+Run this read-only diagnostic from a generated project root. It checks scaffold
+version drift, the SQLx/auth dependency baseline, generator wiring markers,
+migration structure, and required configuration documentation. Structural
+failures return a non-zero status; dependency version differences are reported
+as warnings so applications retain control of their upgrade schedule.
+
+```bash
+rustwing doctor
+```
+
+## `rustwing upgrade`
+
+Previews a conservative framework upgrade. The default command is a dry run:
+
+```bash
+rustwing upgrade
+```
+
+Apply it explicitly with:
+
+```bash
+rustwing upgrade --apply
+```
+
+The apply flow runs `cargo update -p rustwing`, verifies the project with
+`cargo check`, and refreshes `.rustwing-version` only after compilation passes.
+It does not rewrite generated source, migrations, or application-owned files.
+
 ## `rustwing run`
 
 Runs the API server (`cargo run --bin api`).

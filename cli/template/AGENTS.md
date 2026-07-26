@@ -1,6 +1,8 @@
 # Rustwing project — for AI coding assistants
 
-This is a Rustwing SaaS project. Below is the context you need to understand its structure and conventions before making changes or adding features.
+This is a Rustwing application. It may be single-tenant, multi-tenant, or
+global-data oriented; use the generated scope and authorization rules rather
+than assuming every resource belongs to a tenant.
 
 ## Agent operating rules
 
@@ -9,6 +11,7 @@ This is a Rustwing SaaS project. Below is the context you need to understand its
 - Use `rustwing g --help` when command syntax is unclear. The generator shape is `rustwing g <resource|model> <name> [--tenant ...] [--scope ...] --fields ...`.
 - Use singular, snake_case names for generated resources and models, for example `ticket`, `comment`, `knowledge_base_article`.
 - After generation, inspect the diff or changed files, add custom business rules in services first, and run `cargo check`.
+- Before upgrade work, run `rustwing doctor`; inspect its warnings before changing dependencies or generated wiring.
 - For token efficiency, do not expand or rewrite standard generated CRUD boilerplate in chat; run the CLI, then inspect only the changed files that need customization.
 - Only fall back to manual scaffolding when the CLI is unavailable or cannot express the required shape. If that happens, follow the manual checklist below and keep the same file names, module registrations, and migration conventions the generator would have used.
 
@@ -45,10 +48,12 @@ This is a Rustwing SaaS project. Below is the context you need to understand its
 │   │   └── services/           # Business logic, validation, tenant scope, orchestration
 │   │       ├── mod.rs
 │   │       ├── auth_service.rs
+│   │       ├── authorization.rs # Active organization membership checks
 │   │       ├── user_service.rs
 │   │       └── ...             # Generated resource services go here
 │   └── migrations/             # SQL migration files (auto-run on startup)
 │       ├── 00000000000000_create_trigger_function.sql
+│       ├── 00000000000002_create_organizations.sql
 │       └── ...
 ├── worker/                     # Background job worker with DB pool, LLM client, tick loop
 └── frontend/                   # Your frontend (BYO)
@@ -152,6 +157,7 @@ For custom routes, add `utoipa::path` annotations and register the handler/schem
 - Keep password hashes in database-only records. Do not add them to serializable domain models or OpenAPI schemas.
 - Starter account routes are self-only (`/users/me`). Any admin, directory, or cross-account operation requires an explicit authorization policy.
 - A tenant path parameter is not proof of membership. Verify the authenticated actor's tenant access in the service before using scoped repository helpers.
+- Tenant-scoped resources generated with `--tenant` call the authorization service before repository access. Registration creates a personal organization; provision additional memberships explicitly. Do not bypass the check by accepting an optional tenant predicate.
 - Never delete or rewrite rows in `_sqlx_migrations` to repair drift. Applied migrations are immutable; restore the missing file or perform an explicit, reviewed database repair.
 
 ### CRUD layer
@@ -216,9 +222,10 @@ Put polling, queues, AI enrichment, and other background workflows in worker ser
 
 ### Error handling
 
-- `AppError` wraps `CoreError` (Database, NotFound, Unauthorized, Internal) and `ValidationErrors`.
+- `AppError` wraps `CoreError` (Database, NotFound, Unauthorized, Forbidden, Internal) and `ValidationErrors`.
 - Database constraint violations (`23505` = unique, `23503` = foreign key) map to `409 Conflict`.
 - `NotFound` maps to `404`; `Unauthorized` maps to `401`.
+- `Forbidden` maps to `403`; use it for authenticated users lacking tenant membership or permission.
 - All other errors map to `500`.
 
 ## Common commands
@@ -232,7 +239,19 @@ rustwing g resource <name> --fields ...  # Generate a full REST resource
 rustwing g resource ticket --tenant org_id --fields 'org_id:uuid:required' --fields 'subject:string:required'
 rustwing g resource comment --scope ticket_id --fields 'ticket_id:uuid:required' --fields 'body:string:required'
 rustwing g model <name> ...              # Generate a data-only model
+rustwing doctor                          # Check scaffold and upgrade drift
+rustwing upgrade                         # Preview a verified framework upgrade
 ```
+
+The project root also contains `.rustwing-version`. Keep it when upgrading a
+generated application; `rustwing doctor` uses it to identify the CLI,
+framework, and template versions that created the scaffold. It also checks
+the SQLx/auth dependency baseline and the generator markers used to safely add
+routes and OpenAPI entries.
+
+Use `rustwing upgrade --apply` only when you want the CLI to update the
+framework lockfile and run `cargo check`. It never rewrites application source
+or migrations.
 
 ## If adding a new resource manually
 

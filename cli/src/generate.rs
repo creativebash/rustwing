@@ -224,6 +224,7 @@ impl Field {
 #[derive(Debug, Clone)]
 struct ScopeConfig {
     field: String,
+    is_tenant: bool,
 }
 
 impl ScopeConfig {
@@ -232,6 +233,7 @@ impl ScopeConfig {
 
         Ok(Self {
             field: field.to_string(),
+            is_tenant: false,
         })
     }
 
@@ -399,7 +401,9 @@ fn build_scopes(tenant: Option<&str>, scope_args: &[String]) -> Result<Vec<Scope
         {
             continue;
         }
-        scopes.push(ScopeConfig::new(&field, label)?);
+        let mut scope = ScopeConfig::new(&field, label)?;
+        scope.is_tenant = label == "tenant field";
+        scopes.push(scope);
     }
 
     Ok(scopes)
@@ -1337,7 +1341,8 @@ fn handler_template(model: &str, lower: &str, scopes: &[ScopeConfig]) -> String 
         let scoped_path = path_extractor(scopes, false, &id_param);
         let scoped_id_path = path_extractor(scopes, true, &id_param);
         let args = scope_args(scopes);
-        return format!(
+        let tenant_scoped = scopes.iter().any(|scope| scope.is_tenant);
+        let output = format!(
             r#"use axum::{{extract::{{Path, Query, State}}, http::StatusCode, Json}};
 use uuid::Uuid;
 
@@ -1503,6 +1508,13 @@ pub async fn delete_{lower}(
             scope_params = scope_params,
             item_params = item_params,
         );
+        return if tenant_scoped {
+            output
+                .replace("_auth: AuthUser", "auth: AuthUser")
+                .replace("(&state.db, ", "(&state.db, auth.id, ")
+        } else {
+            output
+        };
     }
 
     format!(
@@ -1672,6 +1684,27 @@ fn service_template(model: &str, lower: &str, scopes: &[ScopeConfig]) -> String 
         let suffix = scope_suffix(scopes);
         let params = scope_params(scopes);
         let args = scope_args(scopes);
+        let tenant_scoped = scopes.iter().any(|scope| scope.is_tenant);
+        let actor_param = if tenant_scoped {
+            "    actor_id: Uuid,\n"
+        } else {
+            ""
+        };
+        let authorization_import = if tenant_scoped {
+            "    services::authorization,\n"
+        } else {
+            ""
+        };
+        let tenant_check = scopes
+            .iter()
+            .find(|scope| scope.is_tenant)
+            .map(|scope| {
+                format!(
+                    "    authorization::require_membership(db, actor_id, {}).await?;\n",
+                    scope.field
+                )
+            })
+            .unwrap_or_default();
         return format!(
             r#"use sqlx::PgPool;
 use uuid::Uuid;
@@ -1682,6 +1715,7 @@ use crate::{{
     error::AppError,
     http::dtos::{lower}_dto::{{Create{Model}, Update{Model}}},
     repository::{lower}_repo::{{self, Insert{Model}, {Model}Update}},
+{authorization_import}
 }};
 use rustwing::prelude::*;
 
@@ -1690,10 +1724,12 @@ const MAX_LIMIT: i64 = 100;
 
 pub async fn list_{lower}s(
     db: &PgPool,
+{actor_param}
     {params},
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<Vec<{Model}>, AppError> {{
+{tenant_check}    
     Ok({lower}_repo::find_by_{suffix}(
         db,
         {args},
@@ -1705,10 +1741,12 @@ pub async fn list_{lower}s(
 
 pub async fn list_{lower}s_cursor(
     db: &PgPool,
+{actor_param}
     {params},
     after: Option<Uuid>,
     limit: Option<i64>,
 ) -> Result<Vec<{Model}>, AppError> {{
+{tenant_check}    
     Ok({lower}_repo::find_by_{suffix}_cursor(
         db,
         {args},
@@ -1720,17 +1758,21 @@ pub async fn list_{lower}s_cursor(
 
 pub async fn get_{lower}(
     db: &PgPool,
+{actor_param}
     {params},
     id: Uuid,
 ) -> Result<{Model}, AppError> {{
+{tenant_check}    
     Ok({lower}_repo::find_by_{suffix}_and_id(db, {args}, id).await?)
 }}
 
 pub async fn create_{lower}(
     db: &PgPool,
+{actor_param}
     {params},
     payload: Create{Model},
 ) -> Result<{Model}, AppError> {{
+{tenant_check}    
     payload.validate()?;
     let insert = Insert{Model}::from_scopes({args}, payload);
     Ok(generic_crud::insert::<{Model}, Insert{Model}>(db, &insert).await?)
@@ -1738,10 +1780,12 @@ pub async fn create_{lower}(
 
 pub async fn update_{lower}(
     db: &PgPool,
+{actor_param}
     {params},
     id: Uuid,
     payload: Update{Model},
 ) -> Result<{Model}, AppError> {{
+{tenant_check}    
     payload.validate()?;
     let update = {Model}Update::from(payload);
     Ok({lower}_repo::update_by_{suffix}_and_id(db, {args}, id, &update).await?)
@@ -1749,9 +1793,11 @@ pub async fn update_{lower}(
 
 pub async fn delete_{lower}(
     db: &PgPool,
+{actor_param}
     {params},
     id: Uuid,
 ) -> Result<(), AppError> {{
+{tenant_check}    
     Ok({lower}_repo::delete_by_{suffix}_and_id(db, {args}, id).await?)
 }}
 
@@ -1768,6 +1814,9 @@ fn normalize_offset(offset: Option<i64>) -> i64 {{
             params = params,
             args = args,
             suffix = suffix,
+            tenant_check = tenant_check,
+            actor_param = actor_param,
+            authorization_import = authorization_import,
         );
     }
 
@@ -1937,6 +1986,29 @@ mod tests {
 
         assert!(output.contains("http::pagination::{CursorPagination, Pagination}"));
         assert!(!output.contains("user_routes::{Pagination"));
+    }
+
+    #[test]
+    fn tenant_resources_require_membership_before_repository_access() {
+        let scopes = build_scopes(Some("org_id"), &[]).unwrap();
+        let handler = handler_template("Ticket", "ticket", &scopes);
+        let service = service_template("Ticket", "ticket", &scopes);
+
+        assert!(handler.contains("auth.id"));
+        assert!(service.contains("authorization::require_membership"));
+        assert!(service.contains("actor_id: Uuid"));
+    }
+
+    #[test]
+    fn parent_scoped_resources_do_not_receive_tenant_authorization_state() {
+        let scopes = build_scopes(None, &["ticket_id".to_string()]).unwrap();
+        let handler = handler_template("Comment", "comment", &scopes);
+        let service = service_template("Comment", "comment", &scopes);
+
+        assert!(handler.contains("_auth: AuthUser"));
+        assert!(!handler.contains("auth.id"));
+        assert!(!service.contains("actor_id: Uuid"));
+        assert!(!service.contains("services::authorization"));
     }
 
     #[test]

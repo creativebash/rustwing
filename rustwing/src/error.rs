@@ -11,6 +11,9 @@ pub enum CoreError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Forbidden")]
+    Forbidden,
+
     #[error("Internal error: {0}")]
     Internal(String),
 }

@@ -1,6 +1,7 @@
 use rustwing::prelude::*;
 use sqlx::PgPool;
 use tokio::task;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
@@ -26,6 +27,7 @@ pub async fn register(
         .await
         .map_err(|error| CoreError::Internal(format!("Password task failed: {error}")))??;
 
+    let mut tx = db.begin().await?;
     let record: UserRecord = sqlx::query_as(
         "INSERT INTO users (username, email, password_hash, credit_balance) \
          VALUES ($1, $2, $3, 0) RETURNING *",
@@ -33,8 +35,23 @@ pub async fn register(
     .bind(&username)
     .bind(&email)
     .bind(&password_hash)
-    .fetch_one(db)
+    .fetch_one(&mut *tx)
     .await?;
+
+    let organization_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO organizations (name) VALUES ($1) RETURNING id",
+    )
+    .bind(format!("{}'s organization", username))
+    .fetch_one(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')",
+    )
+    .bind(organization_id)
+    .bind(record.id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
 
     let token = AuthEngine::create_jwt(record.id, jwt_secret)?;
 
@@ -42,6 +59,7 @@ pub async fn register(
     Ok(AuthResponse {
         token,
         user: UserResponse::from(user),
+        organization_id,
     })
 }
 
@@ -77,9 +95,18 @@ pub async fn login(
 
     let token = AuthEngine::create_jwt(record.id, jwt_secret)?;
 
+    let organization_id: Uuid = sqlx::query_scalar(
+        "SELECT organization_id FROM organization_members WHERE user_id = $1 AND status = 'active' ORDER BY created_at LIMIT 1",
+    )
+    .bind(record.id)
+    .fetch_optional(db)
+    .await?
+    .ok_or(CoreError::Forbidden)?;
+
     let user: User = record.into();
     Ok(AuthResponse {
         token,
         user: UserResponse::from(user),
+        organization_id,
     })
 }

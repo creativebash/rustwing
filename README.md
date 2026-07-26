@@ -30,6 +30,8 @@ Rustwing is a batteries-included framework for developers who want to build prod
 cargo install rustwing-cli
 rustwing new my_app
 cd my_app
+rustwing doctor
+rustwing upgrade             # Preview a safe framework upgrade
 rustwing run
 # Open http://localhost:3000/docs
 ```

@@ -26,7 +26,10 @@ pub fn run(project_name: &str, local_framework: Option<&str>) {
                 ));
             });
         }
-        let processed = content.replace("{{project_name}}", project_name);
+        let processed = content
+            .replace("{{project_name}}", project_name)
+            .replace("{{cli_version}}", env!("CARGO_PKG_VERSION"))
+            .replace("{{framework_version}}", crate::FRAMEWORK_VERSION);
         fs::write(&file_path, processed).unwrap_or_else(|e| {
             fail(format!("Failed to write {}: {}", file_path.display(), e));
         });
@@ -123,5 +126,25 @@ mod tests {
         assert!(main.contains("JWT_SECRET must be set"));
         assert!(!main.contains("super_secret_dev_key_change_me"));
         assert!(!main.contains("DELETE FROM _sqlx_migrations"));
+    }
+
+    #[test]
+    fn scaffold_embeds_upgrade_metadata() {
+        let metadata = template(".rustwing-version");
+
+        assert!(metadata.contains("cli_version = \"{{cli_version}}\""));
+        assert!(metadata.contains("framework_version = \"{{framework_version}}\""));
+        assert!(metadata.contains("template_version = \"{{cli_version}}\""));
+    }
+
+    #[test]
+    fn starter_tenant_authorization_is_wired() {
+        let migration = template("api/migrations/00000000000002_create_organizations.sql");
+        let authorization = template("api/src/services/authorization.rs");
+
+        assert!(migration.contains("organization_members"));
+        assert!(migration.contains("status TEXT NOT NULL DEFAULT 'active'"));
+        assert!(authorization.contains("require_membership"));
+        assert!(authorization.contains("CoreError::Forbidden"));
     }
 }

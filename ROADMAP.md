@@ -23,9 +23,9 @@ applications do not drift onto incompatible database or integration APIs.
   Tokio's blocking pool instead of blocking request executors.
 - [x] **Required JWT configuration** — generated APIs fail at startup when
   `JWT_SECRET` is absent instead of using a shared fallback.
-- [ ] **Tenant membership authorization** — generated `--tenant` resources
-  must verify that the current user belongs to the tenant; route/query scope
-  alone is not an authorization boundary.
+- [x] **Tenant membership authorization** — generated `--tenant` resources
+  verify active organization membership before repository access; route/query
+  scope alone is not an authorization boundary.
 - [ ] **Auth lifecycle** — issuer/audience claims, key rotation, refresh
   sessions, revocation, password-hash upgrades, and login/register rate limits.
 
@@ -85,12 +85,13 @@ applications do not drift onto incompatible database or integration APIs.
   before modifying an application.
 - [ ] **`rustwing g ... --dry-run` and `--json`** — make generated plans
   inspectable by people, CI, and coding agents.
-- [ ] **Scaffold version metadata** — record which template version created
-  an application.
-- [ ] **`rustwing doctor`** — diagnose configuration, migration, template,
-  dependency, OpenAPI, and generated-code drift.
-- [ ] **Upgrade assistance** — provide focused diagnostics and codemods
-  without taking ownership away from applications.
+- [x] **Scaffold version metadata** — record which template version created
+  an application in `.rustwing-version`.
+- [x] **`rustwing doctor`** — diagnose scaffold version, dependency wiring,
+  migration structure, and required configuration drift.
+- [x] **Upgrade assistance** — provide focused diagnostics and a verified,
+  non-destructive framework lockfile upgrade without taking ownership away
+  from applications.
 - [ ] **Typed Clap subcommands** — replace stringly generator dispatch with
   testable command types returning normal `Result` values.
 

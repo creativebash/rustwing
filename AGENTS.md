@@ -15,6 +15,9 @@ created by `rustwing new`.
 - Keep changes focused. If a change affects generated apps, update the template,
   regenerate embedded template data, and smoke test the generated project.
 - Do not edit unrelated files or undo user changes in a dirty worktree.
+- Treat `AGENTS.md` and `cli/template/AGENTS.md` as product surfaces: the root
+  guide serves Rustwing contributors, while the template guide is copied to
+  users' projects and directs their coding agents.
 
 ## Repository map
 
@@ -31,6 +34,7 @@ cli/                       rustwing-cli crate
   src/generate.rs          Resource/model generator used inside projects
   src/template_data.rs     Generated embedded copy of cli/template/
   template/                Source of truth for rustwing new output
+  template/AGENTS.md       Coding-agent guide copied into generated projects
 ```
 
 ## Change workflow
@@ -65,6 +69,9 @@ This regenerates `cli/src/template_data.rs`. Do not edit
   be accepted through `--fields`.
 - If a feature is a common project need, prefer adding it to the generator or
   template so future users and agents do less manual work.
+- Tenant resources generated with `--tenant` must enforce active organization
+  membership in the service layer before repository access. Route parameters
+  are never authorization evidence.
 
 ## Template rules
 
@@ -77,6 +84,8 @@ This regenerates `cli/src/template_data.rs`. Do not edit
 - When framework APIs change, update template code that consumes those APIs.
 - When the framework crate version changes, check `cli/template/api/Cargo.toml`
   and the framework version string in `cli/src/main.rs`.
+- When generated behavior changes, update `cli/template/AGENTS.md` so coding
+  agents in user projects receive the same security and upgrade guidance.
 
 ## Common commands
 
@@ -91,6 +100,8 @@ scripts/test-template.sh
 cargo run --bin rustwing -- --help
 cargo run --bin rustwing -- g --help
 cargo run --bin rustwing -- new test_project --local "$(pwd)"
+rustwing doctor                         # from a generated project root
+rustwing upgrade                        # preview a verified framework upgrade
 ```
 
 Run generator commands from inside a generated project:

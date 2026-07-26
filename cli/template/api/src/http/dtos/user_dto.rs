@@ -61,4 +61,5 @@ impl From<User> for UserResponse {
 pub struct AuthResponse {
     pub token: String,
     pub user: UserResponse,
+    pub organization_id: Uuid,
 }
