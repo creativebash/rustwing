@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-const FRAMEWORK_VERSION: &str = "0.1.8";
+const FRAMEWORK_VERSION: &str = "0.1.9";
 
 #[derive(Debug, Default)]
 struct Report {

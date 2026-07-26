@@ -3,7 +3,7 @@
 pub use crate::error::CoreError;
 pub use crate::infrastructure::auth::AuthEngine;
 pub use crate::infrastructure::llm::{
-    LlmRef, LlmRequest, LlmResponse, build_client, build_client_with_config,
+    LlmRef, LlmRequest, LlmResponse, LlmUsage, build_client, build_client_with_config,
     default_model_for_provider,
 };
 pub use crate::patch::Nullable;

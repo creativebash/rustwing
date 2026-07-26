@@ -257,6 +257,23 @@ pub struct LlmRequest {
     pub prompt: String,
     pub max_tokens: Option<u32>,  // per-request override; None = use agent default
 }
+
+pub struct LlmResponse {
+    pub completion: String,
+    pub usage: Option<LlmUsage>,
+    pub provider: String,
+    pub model: String,
+    pub request_id: Option<String>,
+    pub latency_ms: u64,
+}
+
+// Token counts are normalized across providers. Usage may be unavailable.
+pub struct LlmUsage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub total_tokens: u64,
+    // Cache, tool-use, and reasoning token fields are also available.
+}
 ```
 
 Built-in implementations:
@@ -264,12 +281,16 @@ Built-in implementations:
 - `OpenAI` — requires `OPENAI_API_KEY`
 - `Gemini` — requires `GEMINI_API_KEY`
 - `Anthropic` — requires `ANTHROPIC_API_KEY`
-- `Stub` — local development, returns canned responses
+- `Stub` — local development, returns canned responses without usage metrics
 
 Configure via environment variables:
 - `LLM_PROVIDER` — `"stub"`, `"deepseek"`, `"openai"`, `"gemini"`, or `"anthropic"`
 - `LLM_MODEL` — optional model name override; if unset, Rustwing uses the selected provider's default model
 - `LLM_MAX_TOKENS` — optional default max output tokens; set per-request via `LlmRequest.max_tokens`
+
+Provider responses expose normalized token usage when the provider reports it,
+along with provider/model metadata, request ID when available, and request
+latency. Prompt and completion content is not logged by the framework.
 
 ## Worker
 
