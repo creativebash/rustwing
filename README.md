@@ -19,7 +19,8 @@ Rustwing is a batteries-included framework for developers who want to build prod
 - **Scoped resources** — Opt into SaaS-style or parent-child routes and SQLx helpers with `--tenant` or `--scope`
 - **API-first by default** — OpenAPI JSON, Swagger UI, ReDoc, and TypeScript client generation for generated APIs
 - **Migrations** — Automatic, fail-closed database migrations on run
-- **Background workers** — Wired worker binary with DB pool, LLM client, and tick loop
+- **Reliable background work** — PostgreSQL jobs, leases, retries, dead letters, transactional outbox, and idempotency
+- **Production HTTP defaults** — request IDs, structured tracing, rate limits, graceful shutdown, liveness, and readiness
 - **LLM hooks** — Pluggable AI integrations (DeepSeek, OpenAI, Gemini, Anthropic, local stubs)
 - **Scaffolding CLI** — Generate resources, models, services, repositories, handlers, and routes instantly
 - **Error handling** — Clean mapping of database and application errors
@@ -92,7 +93,7 @@ rustwing g resource ticket \
   --fields 'assigned_member_id:uuid:optional'
 ```
 
-This generates nested routes like `/orgs/{org_id}/tickets`, plus scoped repository helpers such as `find_by_org_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`.
+This generates nested routes like `/orgs/{org_id}/tickets`, plus scoped repository helpers such as `find_by_org_id`, `update_by_org_id_and_id`, and `delete_by_org_id_and_id`. Every item operation includes the tenant and entity identifiers directly in SQL.
 
 Route and SQL scoping prevent accidental cross-scope queries, but applications
 must still enforce tenant membership in their services. Rustwing does not treat
@@ -142,8 +143,8 @@ my_app/
 │   │   │   └── handlers/       # Route handlers
 │   │   ├── repository/         # SQLx-native database access
 │   │   └── services/           # Business logic and orchestration
-│   └── migrations/             # SQL migrations (auto-run)
-├── worker/                     # DB/LLM-backed worker tick loop
+│   └── migrations/             # SQL migrations (auto-run, fail closed)
+├── worker/                     # Durable PostgreSQL job worker
 └── frontend/                   # (coming soon)
 ```
 
@@ -151,6 +152,7 @@ my_app/
 
 | Env var               | Required      | Default           | Description                                                       |
 | --------------------- | ------------- | ----------------- | ----------------------------------------------------------------- |
+| `APP_ENV`             | No            | `development`     | `development`, `test`, or strict `production`                     |
 | `DATABASE_URL`        | Yes           | —                 | Postgres connection string                                        |
 | `JWT_SECRET`          | Yes           | —                 | Strong, unique secret key for JWT tokens                          |
 | `LLM_PROVIDER`        | No            | `stub`            | AI provider (`stub`, `deepseek`, `openai`, `gemini`, `anthropic`) |
@@ -163,9 +165,28 @@ my_app/
 | `RUST_LOG`            | No            | `info,api=debug`  | Log level                                                         |
 | `WORKER_TICK_SECONDS` | No            | `10`              | Worker polling interval                                           |
 
+Production rejects placeholder/short JWT secrets, the development LLM stub,
+unknown providers, and missing provider credentials. Secret values are never
+included in startup logs.
+
+## Reliability primitives
+
+`JobQueue`, `Outbox`, and `IdempotencyStore` are small SQLx-native PostgreSQL
+primitives. Jobs and outbox events use leases and `FOR UPDATE SKIP LOCKED`,
+recover after worker crashes, and deliver at least once. Consumers must be
+idempotent. Outbox records and business changes can share the same explicit
+SQLx transaction by passing `&mut *tx`.
+
+Cursor endpoints return opaque cursors and deterministic UUIDv7 ID ordering.
+Entities retain explicit `created_at`; business time must use domain fields such
+as `issued_at`, `paid_at`, or `occurred_at`.
+
+> Never use `f32` or `f64` for monetary values. Financial applications should
+> define explicit decimal-based money, currency, and exchange-rate types.
+
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's coming — job queues, frontend SDK generation, billing integration, and more.
+See [ROADMAP.md](ROADMAP.md) for current and future work.
 
 ## Documentation
 

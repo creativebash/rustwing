@@ -22,7 +22,8 @@ use crate::{
         (url = "http://localhost:3000", description = "Local development server")
     ),
     paths(
-        root::health,
+        root::live,
+        root::ready,
         auth_routes::register,
         auth_routes::login,
         user_routes::get_current_user,

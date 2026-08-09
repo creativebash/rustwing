@@ -63,3 +63,25 @@ pub struct AuthResponse {
     pub user: UserResponse,
     pub organization_id: Uuid,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::user::User;
+
+    #[test]
+    fn serialized_user_responses_cannot_contain_password_hashes() {
+        let user = User {
+            id: Uuid::now_v7(),
+            username: "safe".into(),
+            email: "safe@example.com".into(),
+            credit_balance: 0,
+            bio: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let json = serde_json::to_string(&UserResponse::from(user)).unwrap();
+        assert!(!json.contains("password_hash"));
+        assert!(!json.contains("argon2"));
+    }
+}

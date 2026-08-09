@@ -65,6 +65,18 @@ Rustwing provides conventions, scaffolding, and built-in auth/CRUD on top of **A
 
 ## Key conventions
 
+### Production invariants
+
+- Keep handlers thin. Extract HTTP data and authentication, then call services; never bypass service/domain rules by mutating repositories directly from handlers.
+- Services own authorization, tenant scope, validation, transactions, orchestration, and reliable side effects. Repositories keep SQLx queries explicit.
+- Every tenant-owned get, update, and delete query must include the trusted tenant ID and every parent scope. Never accept tenant ownership from writable JSON fields.
+- Pass `&mut *tx` to transaction-compatible repository functions for atomic multi-step work. Commit and rollback SQLx transactions explicitly.
+- Record reliable external work through `JobQueue` or the transactional `Outbox`; handlers must not synchronously publish side effects that can diverge from committed state.
+- Wrap externally retried operations in `IdempotencyStore` with a tenant/provider namespace and request fingerprint. Reuse provider idempotency keys after ambiguous outgoing timeouts.
+- Never represent money with `f32` or `f64`. Define application-owned decimal, currency, exchange-rate, and money types.
+- Never serialize or log passwords, password hashes, JWTs, authorization headers, API secrets, private keys, or sensitive document bodies.
+- Do not add Redis, Kafka, or another infrastructure service unless an actual application requirement exceeds the PostgreSQL primitives.
+
 ### Resource generator - CLI-first
 
 Whenever possible, generate new resources via the CLI rather than writing boilerplate. For agents, this saves tokens and avoids subtle wiring mistakes:
@@ -209,9 +221,11 @@ This is intentionally opt-in because not every optional database column needs cl
 
 ### Worker pattern
 
-The generated `worker` binary is executable, not just a placeholder. It loads `.env`, configures tracing, connects to Postgres, builds the configured LLM client, creates `WorkerState { db, llm }`, and runs `process_pending_jobs()` on an interval controlled by `WORKER_TICK_SECONDS`.
+The generated `worker` binary loads configuration, connects to PostgreSQL,
+builds the configured LLM client, and claims durable jobs at the interval
+controlled by `WORKER_TICK_SECONDS`.
 
-Put polling, queues, AI enrichment, and other background workflows in worker services/functions called from `process_pending_jobs()`.
+The worker claims durable PostgreSQL jobs with leases and `FOR UPDATE SKIP LOCKED`. Add application job types and typed payload parsing in `handle_job`; malformed payloads should be permanent failures. Long jobs are heartbeated, retries are bounded, and stale leases are recovered. Use the transactional outbox for external effects coupled to business state changes. Both mechanisms are at-least-once, so consumers must be idempotent.
 
 ### Migrations
 
@@ -222,7 +236,8 @@ Put polling, queues, AI enrichment, and other background workflows in worker ser
 
 ### Error handling
 
-- `AppError` wraps `CoreError` (Database, NotFound, Unauthorized, Forbidden, Internal) and `ValidationErrors`.
+- `AppError` wraps `CoreError` (database, auth/access, invalid input, conflict,
+  configuration, and internal failures) plus `ValidationErrors`.
 - Database constraint violations (`23505` = unique, `23503` = foreign key) map to `409 Conflict`.
 - `NotFound` maps to `404`; `Unauthorized` maps to `401`.
 - `Forbidden` maps to `403`; use it for authenticated users lacking tenant membership or permission.

@@ -13,7 +13,7 @@ uuid = { version = "1.8", features = ["serde", "v4", "v7"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 dotenvy = "0.15"
 sqlx = { version = "0.9", default-features = false, features = ["postgres", "runtime-tokio", "uuid", "json", "chrono", "migrate", "macros"] }
 validator = { version = "0.19", features = ["derive"] }
@@ -21,3 +21,4 @@ jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 utoipa-redoc = { version = "6", features = ["axum"] }
+tower = { version = "0.5", features = ["util"] }

@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
-use uuid::Uuid;
 
 #[derive(Deserialize, IntoParams, ToSchema)]
 #[into_params(parameter_in = Query)]
@@ -12,6 +11,7 @@ pub struct Pagination {
 #[derive(Deserialize, IntoParams, ToSchema)]
 #[into_params(parameter_in = Query)]
 pub struct CursorPagination {
-    pub after: Option<Uuid>,
+    /// Opaque cursor returned by the previous page.
+    pub after: Option<String>,
     pub limit: Option<i64>,
 }

@@ -44,8 +44,9 @@ applications do not drift onto incompatible database or integration APIs.
   use explicit ID ordering.
 - [x] **Scope indexes** — scoped resource migrations create indexes matching
   their generated filters.
-- [ ] **Stable cursor pagination** — replace UUID-only cursors with an opaque
-  `(created_at, id)` cursor and matching indexes.
+- [x] **Stable cursor pagination** — UUIDv7 generation is consistent and
+  same-millisecond monotonic within a process; endpoints expose opaque ID
+  cursors with deterministic SQL ordering and explicit business timestamps.
 - [ ] **Nullable PATCH generation** — generate `Nullable<T>` for nullable
   fields that clients must be able to clear.
 - [ ] **Soft deletes** — add an explicit `deleted_at` generator pattern and
@@ -53,15 +54,15 @@ applications do not drift onto incompatible database or integration APIs.
 
 ### Runtime hardening
 
-- [ ] **Typed startup configuration** — validate environment-specific
+- [x] **Typed startup configuration** — validate environment-specific
   settings, pool sizes, ports, secrets, and provider configuration together.
-- [ ] **HTTP production defaults** — request IDs, graceful shutdown, body
-  limits, timeouts, sensitive-header redaction, and configurable CORS.
-- [ ] **Rate limiting** — provide Tower-based global and endpoint policies.
-- [ ] **Health model** — separate liveness and dependency-aware readiness.
+- [x] **HTTP request observability and shutdown** — request IDs, structured
+  tracing, response propagation, sensitive-data logging rules, and graceful shutdown.
+- [x] **Rate limiting** — process-local global and sensitive-endpoint policies.
+- [x] **Health model** — separate liveness and PostgreSQL-aware readiness.
 - [ ] **Feature flags** — make auth and LLM dependencies optional so minimal
   applications do not compile unused provider stacks.
-- [ ] **LLM failure safety** — invalid providers/configuration must fail
+- [x] **LLM failure safety** — invalid providers/configuration fail
   startup; prompts must not be logged by default.
 
 ### Verification
@@ -97,13 +98,13 @@ applications do not drift onto incompatible database or integration APIs.
 
 ## v0.4 — Reliable background jobs
 
-- [ ] **PostgreSQL job queue** — durable claims using PostgreSQL locking
+- [x] **PostgreSQL job queue** — durable claims using PostgreSQL locking
   primitives, without requiring Redis.
 - [ ] **`rustwing g job process_payment`** — scaffold typed job payloads and
   handlers.
-- [ ] **Retries and dead letters** — bounded exponential backoff, attempt
+- [x] **Retries and dead letters** — bounded exponential backoff, attempt
   history, lease expiry, crash recovery, and dead-letter handling.
-- [ ] **Transactional outbox** — enqueue work in the same transaction as
+- [x] **Transactional outbox** — enqueue work in the same transaction as
   application state changes.
 - [ ] **Job observability** — tracing, metrics, queue depth, latency, and
   failure inspection.

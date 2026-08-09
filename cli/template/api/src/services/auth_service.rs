@@ -28,22 +28,24 @@ pub async fn register(
         .map_err(|error| CoreError::Internal(format!("Password task failed: {error}")))??;
 
     let mut tx = db.begin().await?;
+    let user_id = Uuid::now_v7();
     let record: UserRecord = sqlx::query_as(
-        "INSERT INTO users (username, email, password_hash, credit_balance) \
-         VALUES ($1, $2, $3, 0) RETURNING *",
+        "INSERT INTO users (id, username, email, password_hash, credit_balance) \
+         VALUES ($1, $2, $3, $4, 0) RETURNING *",
     )
+    .bind(user_id)
     .bind(&username)
     .bind(&email)
     .bind(&password_hash)
     .fetch_one(&mut *tx)
     .await?;
 
-    let organization_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO organizations (name) VALUES ($1) RETURNING id",
-    )
-    .bind(format!("{}'s organization", username))
-    .fetch_one(&mut *tx)
-    .await?;
+    let organization_id = Uuid::now_v7();
+    sqlx::query("INSERT INTO organizations (id, name) VALUES ($1, $2)")
+        .bind(organization_id)
+        .bind(format!("{}'s organization", username))
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         "INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')",
     )
@@ -109,4 +111,76 @@ pub async fn login(
         user: UserResponse::from(user),
         organization_id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::{AssertSqlSafe, postgres::PgPoolOptions};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn registration_and_login_work_without_serializing_hashes() {
+        let Ok(url) = std::env::var("DATABASE_URL") else {
+            return;
+        };
+        let admin = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        let schema = format!("auth_test_{}", Uuid::now_v7().simple());
+        sqlx::query(AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+        let search_path = Arc::new(schema.clone());
+        let pool = PgPoolOptions::new()
+            .max_connections(4)
+            .after_connect(move |connection, _| {
+                let statement = format!("SET search_path TO {}", search_path);
+                Box::pin(async move {
+                    sqlx::query(AssertSqlSafe(statement))
+                        .execute(connection)
+                        .await
+                        .map(|_| ())
+                })
+            })
+            .connect(&url)
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+        let registered = register(
+            &pool,
+            "test-secret",
+            RegisterRequest {
+                username: "alice".into(),
+                email: "alice@example.com".into(),
+                password: "strong-password".into(),
+            },
+        )
+        .await
+        .unwrap();
+        let logged_in = login(
+            &pool,
+            "test-secret",
+            LoginRequest {
+                email: "alice@example.com".into(),
+                password: "strong-password".into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(registered.user.id, logged_in.user.id);
+        let json = serde_json::to_string(&registered.user).unwrap();
+        assert!(!json.contains("password_hash"));
+        assert!(!json.contains("argon2"));
+
+        pool.close().await;
+        sqlx::query(AssertSqlSafe(format!("DROP SCHEMA {schema} CASCADE")))
+            .execute(&admin)
+            .await
+            .unwrap();
+    }
 }

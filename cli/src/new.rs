@@ -122,10 +122,21 @@ mod tests {
     #[test]
     fn startup_configuration_and_migrations_fail_closed() {
         let main = template("api/src/main.rs");
+        let config = template("api/src/config.rs");
 
-        assert!(main.contains("JWT_SECRET must be set"));
+        assert!(config.contains("JWT_SECRET"));
+        assert!(config.contains("LLM_PROVIDER=stub is development-only"));
         assert!(!main.contains("super_secret_dev_key_change_me"));
         assert!(!main.contains("DELETE FROM _sqlx_migrations"));
+    }
+
+    #[test]
+    fn reliability_migration_is_embedded() {
+        let migration = template("api/migrations/00000000000003_create_reliable_processing.sql");
+        assert!(migration.contains("CREATE TABLE jobs"));
+        assert!(migration.contains("CREATE TABLE outbox_events"));
+        assert!(migration.contains("CREATE TABLE idempotency_records"));
+        assert!(migration.contains("UNIQUE (namespace, scope_key, idempotency_key)"));
     }
 
     #[test]

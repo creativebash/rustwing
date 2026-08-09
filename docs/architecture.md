@@ -100,6 +100,10 @@ impl Updateable for ProductUpdate {
 | `generic_crud::update::<T, U>` | `UPDATE table SET ... WHERE id = $1 RETURNING *` | — |
 | `generic_crud::delete::<T>` | `DELETE FROM table WHERE id = $1` | — |
 
+These functions accept SQLx PostgreSQL executors. Pass `&pool` for ordinary
+operations or `&mut *tx` to compose multiple repositories explicitly inside a
+service-owned transaction. Rustwing does not add a Unit-of-Work abstraction.
+
 ## Auth
 
 Authentication uses Argon2 for password hashing and JWT for session tokens.
@@ -178,6 +182,92 @@ Generated repository helpers include scope filters on list, get, update, and del
 Scoped migrations also create a composite index matching the generated scope
 filter. Scope remains a data-access boundary, not proof of membership:
 services must authorize the current actor for every tenant or parent scope.
+
+Scope fields are excluded from writable JSON DTOs. For combined tenant and
+parent scopes, every generated item query contains the tenant ID, parent ID,
+and entity ID. Generic unscoped CRUD remains available only for global data.
+
+## UUIDv7 and cursor pagination
+
+Rustwing uses `uuid` 1.24 and `Uuid::now_v7()`. Its shared `ContextV7`
+guarantees creation ordering within a process, including UUIDs generated in
+the same millisecond. Generated inserts supply IDs from Rust; migrations do
+not fall back to PostgreSQL UUIDv4 defaults.
+
+Cursor endpoints order by UUIDv7 `id`, request a versioned opaque base64url
+cursor, and return `{ items, next_cursor }`. This is deterministic for a fixed
+result set but is not snapshot isolation under concurrent inserts. UUID time
+is never the canonical business timestamp: keep `created_at` and explicit
+fields such as `issued_at`, `paid_at`, or `occurred_at`.
+
+## Request context and health
+
+Every generated API request receives an `X-Request-ID`. A safe incoming value
+is preserved; otherwise a UUIDv7 value is generated. It is returned in the
+response, stored in request extensions, and attached to the structured tracing
+span. Jobs and outbox events accept the same correlation ID.
+
+`/health/live` only reports that the process is running. `/health/ready` uses a
+short bounded PostgreSQL query and returns 503 while the database is unavailable.
+
+## Durable jobs
+
+`JobQueue` stores JSON jobs in PostgreSQL. Claiming uses `FOR UPDATE SKIP
+LOCKED`, leases, worker ownership, and bounded attempt counts. Active jobs
+heartbeat; expired leases can be claimed by another process. Retryable errors
+use bounded exponential backoff, while malformed/unknown jobs go directly to
+the visible `DEAD` state. Shutdown stops new claims and lets the current batch
+finish. Delivery is at-least-once.
+
+Application-specific job names and typed payloads remain in the worker. Do not
+log full payloads because they may contain confidential documents or provider data.
+
+## Transactional outbox
+
+Call `Outbox::record(&mut *tx, event)` inside the same SQLx transaction as the
+business mutation. Dispatch uses stable event IDs, leases, retries, and a
+recorded `dispatched_at`. A crash after an external effect but before marking
+success can redeliver the event, so consumers must use the event ID idempotently.
+
+## Idempotency
+
+`IdempotencyStore::process_once` namespaces keys by provider/workflow and
+optional organization, verifies a request fingerprint, serializes concurrent
+duplicates with a row lock, and stores successful JSON results for replay. The
+business closure runs in a savepoint: failures roll back its writes but retain
+an inspectable retry state. A process crash rolls back the outer transaction
+and cannot leave a permanent processing lock.
+
+For outgoing provider calls, reuse the same provider idempotency key after an
+ambiguous timeout. Rustwing cannot determine whether the remote provider
+completed an operation.
+
+## Safe webhook flow
+
+Use ordinary Axum extraction in this order:
+
+```text
+raw axum body bytes
+→ verify the provider signature over the exact bytes
+→ extract external event ID and request fingerprint
+→ IdempotencyStore in an application service
+→ domain mutation plus Outbox::record in one SQLx transaction
+→ deliberately minimal HTTP response
+```
+
+Do not deserialize or trust payload fields before signature verification.
+Request context remains available through extensions throughout this flow.
+
+## Database constraints and money
+
+Generated migrations are normal explicit PostgreSQL SQL. Add foreign keys,
+`UNIQUE`, compound `UNIQUE`, `CHECK`, and matching indexes directly before the
+migration is first applied. Migration ordering is numeric and startup fails on
+missing, divergent, or failed migrations.
+
+Never represent monetary values with `f32` or `f64`. Rustwing retains `f64` for
+ordinary measurements; financial applications must define decimal-backed
+money, currency, and exchange-rate domain types.
 
 ## OpenAPI
 
@@ -292,8 +382,27 @@ Provider responses expose normalized token usage when the provider reports it,
 along with provider/model metadata, request ID when available, and request
 latency. Prompt and completion content is not logged by the framework.
 
+Completions remain provider-neutral text. Applications should deserialize and
+validate structured output in a service before invoking typed application
+tools or domain operations. LLM code must never receive an arbitrary database
+mutation path.
+
 ## Worker
 
-Generated projects include a `worker` binary with dotenv and tracing setup, `PgPool`, `LlmRef`, `WorkerState`, and a configurable tick loop via `WORKER_TICK_SECONDS`.
+Generated projects include a durable PostgreSQL worker with structured tracing,
+leased claims, heartbeats, bounded retries, dead jobs, correlation fields, and
+graceful shutdown. Add application-owned job matching and validated payload
+deserialization in `handle_job`.
 
-The default `process_pending_jobs` function is intentionally empty, but executable. Add polling, queue processing, or background AI workflows there.
+## Hardening upgrade notes
+
+Applications created before this hardening release require deliberate changes:
+
+- cursor query parameters are opaque strings and cursor responses are page
+  envelopes rather than bare arrays;
+- inserts must supply UUIDv7 IDs because generated migrations no longer use a
+  UUIDv4 database default;
+- `build_client` and `build_client_with_config` return `Result` and never
+  silently replace a configured provider with the stub;
+- copy/adapt the jobs, outbox, and idempotency migration only as a new,
+  immutable migration; never rewrite one already applied in production.

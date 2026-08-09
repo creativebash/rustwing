@@ -44,6 +44,7 @@ pub type LlmRef = Arc<dyn Llm>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProviderKind {
+    Disabled,
     Stub,
     DeepSeek,
     OpenAi,
@@ -54,6 +55,7 @@ enum ProviderKind {
 
 fn provider_kind(provider: &str) -> ProviderKind {
     match provider.trim().to_ascii_lowercase().as_str() {
+        "disabled" | "none" => ProviderKind::Disabled,
         "stub" => ProviderKind::Stub,
         "deepseek" => ProviderKind::DeepSeek,
         "openai" => ProviderKind::OpenAi,
@@ -69,6 +71,7 @@ pub fn default_model_for_provider(provider: &str) -> &'static str {
         ProviderKind::OpenAi => openai::GPT_4O,
         ProviderKind::Gemini => gemini::completion::GEMINI_2_5_FLASH,
         ProviderKind::Anthropic => anthropic::completion::CLAUDE_SONNET_4_6,
+        ProviderKind::Disabled => "disabled",
         ProviderKind::Stub | ProviderKind::Unknown => "stub",
     }
 }
@@ -184,6 +187,16 @@ impl Llm for AnthropicWrapper {
 // FALLBACK / LOCAL DEV STUB
 // ==========================================
 pub struct StubClient;
+pub struct DisabledClient;
+
+#[async_trait]
+impl Llm for DisabledClient {
+    async fn complete(&self, _request: LlmRequest) -> Result<LlmResponse, CoreError> {
+        Err(CoreError::Configuration(
+            "LLM integration is disabled".into(),
+        ))
+    }
+}
 
 #[async_trait]
 impl Llm for StubClient {
@@ -216,11 +229,15 @@ fn apply_max_tokens<M: rig::completion::CompletionModel>(
     }
 }
 
-pub fn build_client(provider: &str, model: &str) -> LlmRef {
+pub fn build_client(provider: &str, model: &str) -> Result<LlmRef, CoreError> {
     build_client_with_config(provider, model, None)
 }
 
-pub fn build_client_with_config(provider: &str, model: &str, max_tokens: Option<u32>) -> LlmRef {
+pub fn build_client_with_config(
+    provider: &str,
+    model: &str,
+    max_tokens: Option<u32>,
+) -> Result<LlmRef, CoreError> {
     let provider_kind = provider_kind(provider);
     let model = model.trim();
     let model = if model.is_empty() {
@@ -232,66 +249,62 @@ pub fn build_client_with_config(provider: &str, model: &str, max_tokens: Option<
     let max_tokens = max_tokens.map(|t| t as u64);
 
     match provider_kind {
+        ProviderKind::Disabled => Ok(Arc::new(DisabledClient)),
         ProviderKind::Stub => {
             tracing::info!("Initializing Stub LLM");
-            Arc::new(StubClient)
+            Ok(Arc::new(StubClient))
         }
         ProviderKind::DeepSeek => {
             tracing::info!("Initializing DeepSeek LLM (model: {})", model);
-            let Ok(client) = deepseek::Client::from_env() else {
-                tracing::warn!("DeepSeek credentials are unavailable; falling back to Stub");
-                return Arc::new(StubClient);
-            };
+            let client = deepseek::Client::from_env().map_err(|_| {
+                CoreError::Configuration("DeepSeek credentials are unavailable".into())
+            })?;
             let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
-            Arc::new(DeepSeekWrapper {
+            Ok(Arc::new(DeepSeekWrapper {
                 agent,
                 model: model.to_string(),
-            })
+            }))
         }
         ProviderKind::OpenAi => {
             tracing::info!("Initializing OpenAI LLM (model: {})", model);
-            let Ok(client) = openai::Client::from_env() else {
-                tracing::warn!("OpenAI credentials are unavailable; falling back to Stub");
-                return Arc::new(StubClient);
-            };
+            let client = openai::Client::from_env().map_err(|_| {
+                CoreError::Configuration("OpenAI credentials are unavailable".into())
+            })?;
             let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
-            Arc::new(OpenAiWrapper {
+            Ok(Arc::new(OpenAiWrapper {
                 agent,
                 model: model.to_string(),
-            })
+            }))
         }
         ProviderKind::Gemini => {
             tracing::info!("Initializing Gemini LLM (model: {})", model);
-            let Ok(client) = gemini::Client::from_env() else {
-                tracing::warn!("Gemini credentials are unavailable; falling back to Stub");
-                return Arc::new(StubClient);
-            };
+            let client = gemini::Client::from_env().map_err(|_| {
+                CoreError::Configuration("Gemini credentials are unavailable".into())
+            })?;
             let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
-            Arc::new(GeminiWrapper {
+            Ok(Arc::new(GeminiWrapper {
                 agent,
                 model: model.to_string(),
-            })
+            }))
         }
         ProviderKind::Anthropic => {
             tracing::info!("Initializing Anthropic LLM (model: {})", model);
-            let Ok(client) = anthropic::Client::from_env() else {
-                tracing::warn!("Anthropic credentials are unavailable; falling back to Stub");
-                return Arc::new(StubClient);
-            };
+            let client = anthropic::Client::from_env().map_err(|_| {
+                CoreError::Configuration("Anthropic credentials are unavailable".into())
+            })?;
             let builder = client.agent(model);
             let agent = apply_max_tokens(builder, max_tokens).build();
-            Arc::new(AnthropicWrapper {
+            Ok(Arc::new(AnthropicWrapper {
                 agent,
                 model: model.to_string(),
-            })
+            }))
         }
-        ProviderKind::Unknown => {
-            tracing::warn!("Unknown provider '{}'. Falling back to Stub.", provider);
-            Arc::new(StubClient)
-        }
+        ProviderKind::Unknown => Err(CoreError::Configuration(format!(
+            "unknown LLM provider: {provider}"
+        ))),
     }
 }
 
@@ -302,6 +315,7 @@ mod tests {
     #[test]
     fn resolves_provider_aliases() {
         assert_eq!(provider_kind("openai"), ProviderKind::OpenAi);
+        assert_eq!(provider_kind("disabled"), ProviderKind::Disabled);
         assert_eq!(provider_kind("google"), ProviderKind::Gemini);
         assert_eq!(provider_kind("claude"), ProviderKind::Anthropic);
         assert_eq!(provider_kind("unknown"), ProviderKind::Unknown);

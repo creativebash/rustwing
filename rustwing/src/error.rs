@@ -14,6 +14,15 @@ pub enum CoreError {
     #[error("Forbidden")]
     Forbidden,
 
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }

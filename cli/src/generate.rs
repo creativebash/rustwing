@@ -219,6 +219,14 @@ impl Field {
     fn is_auto(&self) -> bool {
         matches!(self.name.as_str(), "id" | "created_at" | "updated_at")
     }
+
+    fn bind_expression(&self) -> String {
+        if matches!(self.rust_type.as_str(), "String" | "serde_json::Value") {
+            format!("&self.{}", self.name)
+        } else {
+            format!("self.{}", self.name)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -745,7 +753,8 @@ fn inject_openapi(prefix: &Path, model: &str, lower: &str, plural: &str) {
         "            crate::domain::{lower}::{Model},\n            \
          crate::http::dtos::{lower}_dto::Create{Model},\n            \
          crate::http::dtos::{lower}_dto::Update{Model},\n            \
-         crate::http::dtos::{lower}_dto::{Model}Response,\n{OPENAPI_SCHEMAS_MARKER}",
+         crate::http::dtos::{lower}_dto::{Model}Response,\n            \
+         crate::http::dtos::{lower}_dto::{Model}Page,\n{OPENAPI_SCHEMAS_MARKER}",
         lower = lower,
         Model = model,
     );
@@ -854,8 +863,8 @@ fn table_migration_sql(table: &str, fields: &[Field], scopes: &[ScopeConfig]) ->
 
     format!(
         r#"-- Create {table} table
-CREATE TABLE IF NOT EXISTS {table} (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE {table} (
+    id          UUID PRIMARY KEY,
 {col_defs}    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -980,6 +989,12 @@ pub struct {Model}Response {{
     pub updated_at: DateTime<Utc>,
 }}
 
+#[derive(Serialize, ToSchema, Clone)]
+pub struct {Model}Page {{
+    pub items: Vec<{Model}Response>,
+    pub next_cursor: Option<String>,
+}}
+
 impl From<{Model}> for {Model}Response {{
     fn from(model: {Model}) -> Self {{
         Self {{
@@ -1030,8 +1045,8 @@ fn scoped_repo_template(model: &str, table: &str, scopes: &[ScopeConfig]) -> Str
     format!(
         r#"
 
-pub async fn find_by_{suffix}(
-    pool: &PgPool,
+pub async fn find_by_{suffix}<'e>(
+    executor: impl Executor<'e, Database = Postgres>,
     {params},
     limit: i64,
     offset: i64,
@@ -1040,13 +1055,13 @@ pub async fn find_by_{suffix}(
     let records = sqlx::query_as(query)
 {scope_binds}        .bind(limit)
         .bind(offset)
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
     Ok(records)
 }}
 
-pub async fn find_by_{suffix}_cursor(
-    pool: &PgPool,
+pub async fn find_by_{suffix}_cursor<'e>(
+    executor: impl Executor<'e, Database = Postgres>,
     {params},
     after_id: Uuid,
     limit: i64,
@@ -1055,33 +1070,33 @@ pub async fn find_by_{suffix}_cursor(
     let records = sqlx::query_as(query)
 {scope_binds}        .bind(after_id)
         .bind(limit)
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
     Ok(records)
 }}
 
-pub async fn find_by_{suffix}_and_id(
-    pool: &PgPool,
+pub async fn find_by_{suffix}_and_id<'e>(
+    executor: impl Executor<'e, Database = Postgres>,
     {params},
     id: Uuid,
 ) -> Result<{Model}, CoreError> {{
     let query = "SELECT * FROM {table} WHERE {where_clause} AND id = ${id_idx}";
     sqlx::query_as(query)
 {scope_binds}        .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?
         .ok_or(CoreError::NotFound)
 }}
 
-pub async fn update_by_{suffix}_and_id(
-    pool: &PgPool,
+pub async fn update_by_{suffix}_and_id<'e>(
+    executor: impl Executor<'e, Database = Postgres>,
     {params},
     id: Uuid,
     data: &{Model}Update,
 ) -> Result<{Model}, CoreError> {{
     let mut qb = QueryBuilder::new("UPDATE {table} SET ");
     if data.bind_updates(&mut qb) == UpdateResult::NoChanges {{
-        return find_by_{suffix}_and_id(pool, {args}, id).await;
+        return find_by_{suffix}_and_id(executor, {args}, id).await;
     }}
 
 {update_scope_pushes}    qb.push(" AND id = ")
@@ -1089,20 +1104,20 @@ pub async fn update_by_{suffix}_and_id(
         .push(" RETURNING *");
 
     qb.build_query_as()
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?
         .ok_or(CoreError::NotFound)
 }}
 
-pub async fn delete_by_{suffix}_and_id(
-    pool: &PgPool,
+pub async fn delete_by_{suffix}_and_id<'e>(
+    executor: impl Executor<'e, Database = Postgres>,
     {params},
     id: Uuid,
 ) -> Result<(), CoreError> {{
     let query = "DELETE FROM {table} WHERE {where_clause} AND id = ${id_idx}";
     let result = sqlx::query(query)
 {scope_binds}        .bind(id)
-        .execute(pool)
+        .execute(executor)
         .await?;
 
     if result.rows_affected() == 0 {{
@@ -1189,7 +1204,7 @@ fn repo_template(
                     .iter()
                     .any(|scope| scope.field.as_str() == f.name.as_str())
                 {
-                    format!("            {}: {},\n", f.name, f.name)
+                    format!("            {},\n", f.name)
                 } else {
                     format!("            {}: dto.{},\n", f.name, f.name)
                 }
@@ -1231,7 +1246,7 @@ fn repo_template(
 
         let bind_values: String = data_fields
             .iter()
-            .map(|f| format!("        separated.push_bind(&self.{});\n", f.name))
+            .map(|f| format!("        separated.push_bind({});\n", f.bind_expression()))
             .collect();
 
         let bind_updates: String = update_data_fields
@@ -1302,7 +1317,7 @@ impl Updateable for {Model}Update {{
         ""
     };
     let sqlx_import = if gen_type == "resource" && !scopes.is_empty() {
-        "use sqlx::{PgPool, Postgres, QueryBuilder};\nuse uuid::Uuid;\n"
+        "use sqlx::{Executor, Postgres, QueryBuilder};\nuse uuid::Uuid;\n"
     } else if gen_type == "resource" {
         "use sqlx::{Postgres, QueryBuilder};\n"
     } else {
@@ -1348,7 +1363,7 @@ use uuid::Uuid;
 
 use crate::{{
     error::{{AppError, ErrorResponse}},
-    http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Response}},
+    http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Page, {Model}Response}},
     http::extractors::AuthUser,
     http::pagination::{{CursorPagination, Pagination}},
     services::{lower}_service,
@@ -1384,7 +1399,7 @@ pub async fn list_{lower}s(
     operation_id = "list{Model}sCursor",
 {cursor_params}    security(("bearerAuth" = [])),
     responses(
-        (status = 200, description = "{Model} resources returned", body = Vec<{Model}Response>),
+        (status = 200, description = "{Model} resources returned", body = {Model}Page),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
@@ -1394,9 +1409,9 @@ pub async fn list_{lower}s_cursor(
     State(state): State<AppState>,
     {scoped_path},
     Query(p): Query<CursorPagination>,
-) -> Result<Json<Vec<{Model}Response>>, AppError> {{
-    let items = {lower}_service::list_{lower}s_cursor(&state.db, {args}, p.after, p.limit).await?;
-    Ok(Json(items.into_iter().map({Model}Response::from).collect()))
+) -> Result<Json<{Model}Page>, AppError> {{
+    let page = {lower}_service::list_{lower}s_cursor(&state.db, {args}, p.after, p.limit).await?;
+    Ok(Json({Model}Page {{ items: page.items.into_iter().map({Model}Response::from).collect(), next_cursor: page.next_cursor }}))
 }}
 
 #[utoipa::path(
@@ -1523,7 +1538,7 @@ use uuid::Uuid;
 
 use crate::{{
     error::{{AppError, ErrorResponse}},
-    http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Response}},
+    http::dtos::{lower}_dto::{{Create{Model}, Update{Model}, {Model}Page, {Model}Response}},
     http::extractors::AuthUser,
     http::pagination::{{CursorPagination, Pagination}},
     services::{lower}_service,
@@ -1558,7 +1573,7 @@ pub async fn list_{lower}s(
     operation_id = "list{Model}sCursor",
 {cursor_params}    security(("bearerAuth" = [])),
     responses(
-        (status = 200, description = "{Model} resources returned", body = Vec<{Model}Response>),
+        (status = 200, description = "{Model} resources returned", body = {Model}Page),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
@@ -1567,9 +1582,9 @@ pub async fn list_{lower}s_cursor(
     _auth: AuthUser,
     State(state): State<AppState>,
     Query(p): Query<CursorPagination>,
-) -> Result<Json<Vec<{Model}Response>>, AppError> {{
-    let items = {lower}_service::list_{lower}s_cursor(&state.db, p.after, p.limit).await?;
-    Ok(Json(items.into_iter().map({Model}Response::from).collect()))
+) -> Result<Json<{Model}Page>, AppError> {{
+    let page = {lower}_service::list_{lower}s_cursor(&state.db, p.after, p.limit).await?;
+    Ok(Json({Model}Page {{ items: page.items.into_iter().map({Model}Response::from).collect(), next_cursor: page.next_cursor }}))
 }}
 
 #[utoipa::path(
@@ -1743,17 +1758,23 @@ pub async fn list_{lower}s_cursor(
     db: &PgPool,
 {actor_param}
     {params},
-    after: Option<Uuid>,
+    after: Option<String>,
     limit: Option<i64>,
-) -> Result<Vec<{Model}>, AppError> {{
+) -> Result<CursorPage<{Model}>, AppError> {{
 {tenant_check}    
-    Ok({lower}_repo::find_by_{suffix}_cursor(
+    let after_id = after.as_deref().map(decode_cursor).transpose()?.unwrap_or_else(Uuid::nil);
+    let requested = normalize_limit(limit);
+    let mut items = {lower}_repo::find_by_{suffix}_cursor(
         db,
         {args},
-        after.unwrap_or_else(Uuid::nil),
-        normalize_limit(limit),
+        after_id,
+        requested + 1,
     )
-    .await?)
+    .await?;
+    let has_more = items.len() as i64 > requested;
+    items.truncate(requested as usize);
+    let next_cursor = has_more.then(|| items.last().map(|item| encode_cursor(item.id))).flatten();
+    Ok(CursorPage::new(items, next_cursor))
 }}
 
 pub async fn get_{lower}(
@@ -1846,15 +1867,21 @@ pub async fn list_{lower}s(
 
 pub async fn list_{lower}s_cursor(
     db: &PgPool,
-    after: Option<Uuid>,
+    after: Option<String>,
     limit: Option<i64>,
-) -> Result<Vec<{Model}>, AppError> {{
-    Ok(generic_crud::find_after::<{Model}>(
+) -> Result<CursorPage<{Model}>, AppError> {{
+    let after_id = after.as_deref().map(decode_cursor).transpose()?.unwrap_or_else(Uuid::nil);
+    let requested = normalize_limit(limit);
+    let mut items = generic_crud::find_after::<{Model}>(
         db,
-        after.unwrap_or_else(Uuid::nil),
-        normalize_limit(limit),
+        after_id,
+        requested + 1,
     )
-    .await?)
+    .await?;
+    let has_more = items.len() as i64 > requested;
+    items.truncate(requested as usize);
+    let next_cursor = has_more.then(|| items.last().map(|item| encode_cursor(item.id))).flatten();
+    Ok(CursorPage::new(items, next_cursor))
 }}
 
 pub async fn get_{lower}(db: &PgPool, id: Uuid) -> Result<{Model}, AppError> {{
@@ -1978,6 +2005,9 @@ mod tests {
             "CREATE INDEX IF NOT EXISTS idx_notes_org_id_ticket_id \
              ON notes (org_id, ticket_id);"
         ));
+        assert!(sql.contains("id          UUID PRIMARY KEY"));
+        assert!(!sql.contains("gen_random_uuid"));
+        assert!(!sql.contains("CREATE TABLE IF NOT EXISTS"));
     }
 
     #[test]
@@ -2047,5 +2077,31 @@ mod tests {
         let scopes = build_scopes(Some("org_id"), &scope_args).unwrap();
 
         assert_eq!(route_prefix(&scopes), "/orgs/{org_id}/tickets/{ticket_id}");
+    }
+
+    #[test]
+    fn cursor_endpoints_are_opaque_page_envelopes() {
+        let fields = vec![Field::from_arg("title:string:required").unwrap()];
+        let dto = dto_template("Post", "post", &fields, &[]);
+        let handler = handler_template("Post", "post", &[]);
+        let service = service_template("Post", "post", &[]);
+        assert!(dto.contains("pub struct PostPage"));
+        assert!(handler.contains("Result<Json<PostPage>"));
+        assert!(service.contains("after: Option<String>"));
+        assert!(service.contains("decode_cursor"));
+        assert!(service.contains("requested + 1"));
+    }
+
+    #[test]
+    fn nested_item_sql_contains_every_scope_and_transaction_executor() {
+        let scopes = build_scopes(Some("org_id"), &["ticket_id".to_string()]).unwrap();
+        let repository = scoped_repo_template("Note", "notes", &scopes);
+        assert!(repository.contains("org_id = $1 AND ticket_id = $2 AND id = $3"));
+        assert!(repository.contains("executor: impl Executor<'e, Database = Postgres>"));
+        assert!(
+            repository
+                .contains("DELETE FROM notes WHERE org_id = $1 AND ticket_id = $2 AND id = $3")
+        );
+        assert!(repository.contains("WHERE org_id = "));
     }
 }

@@ -1,3 +1,4 @@
+mod config;
 mod domain;
 mod error;
 mod http;
@@ -6,6 +7,7 @@ mod repository;
 mod services;
 mod state;
 
+use config::{AppConfig, Environment};
 use rustwing::infrastructure::llm::{build_client_with_config, default_model_for_provider};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -24,48 +26,75 @@ async fn main() {
 
     dotenvy::dotenv().ok();
 
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info,api=debug".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let config =
+        AppConfig::from_env().unwrap_or_else(|error| panic!("Invalid configuration: {error}"));
+    let filter = tracing_subscriber::EnvFilter::new(
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "info,api=debug".into()),
+    );
+    if config.environment == Environment::Production {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(tracing_subscriber::fmt::layer().json())
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
 
     tracing::info!("Starting Rustwing API...");
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
         .max_connections(50)
-        .connect(&db_url)
+        .connect(&config.database_url)
         .await
         .expect("Failed to connect to Postgres");
 
     run_migrations(&pool).await;
 
-    let provider = std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "stub".to_string());
-    let model = std::env::var("LLM_MODEL")
-        .unwrap_or_else(|_| default_model_for_provider(&provider).to_string());
-    let max_tokens = std::env::var("LLM_MAX_TOKENS")
-        .ok()
-        .and_then(|v| v.parse().ok());
-    let llm = build_client_with_config(&provider, &model, max_tokens);
-
-    let jwt_secret = std::env::var("JWT_SECRET").expect(
-        "JWT_SECRET must be set. Generate a strong, unique secret; no insecure fallback is used.",
-    );
+    let model = if config.llm_model.is_empty() {
+        default_model_for_provider(&config.llm_provider)
+    } else {
+        &config.llm_model
+    };
+    let llm = build_client_with_config(&config.llm_provider, model, config.llm_max_tokens)
+        .expect("LLM configuration was validated but client initialization failed");
 
     let state = state::AppState {
         db: pool,
         llm,
-        jwt_secret,
+        jwt_secret: config.jwt_secret,
+        rate_limit: config.rate_limit,
     };
 
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let port = config.port;
     let addr = format!("0.0.0.0:{port}");
     let app = http::app_router(state);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     tracing::info!("Listening on http://localhost:{port}");
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .unwrap();
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = terminate.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = tokio::signal::ctrl_c().await;
+    tracing::info!("shutdown requested");
 }
 
 async fn run_migrations(pool: &sqlx::PgPool) {

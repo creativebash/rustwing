@@ -155,6 +155,10 @@ Remove temporary smoke projects after inspection.
   Otherwise normal `Option<T>` update fields are preferred.
 - Map database and auth errors through the existing `CoreError` and `AppError`
   flow rather than inventing parallel error paths.
+- Preserve the PostgreSQL job, outbox, idempotency, and request-correlation
+  primitives as small SQLx-native building blocks. Delivery is at-least-once.
+- Never recommend floating-point fields for monetary values. `f64` remains
+  available only for ordinary non-financial numeric data.
 - Keep public docs, template comments, and generated names aligned with the CLI
   behavior users actually get.
 

@@ -13,12 +13,13 @@ cleanup() {
 trap cleanup EXIT
 
 ensure_cli() {
-  cargo build --manifest-path "$ROOT/Cargo.toml" --bin rustwing > /dev/null
+  CARGO_TARGET_DIR="$ROOT/target" cargo build --manifest-path "$ROOT/Cargo.toml" --bin rustwing > /dev/null
 }
 
 run_smoke() {
   echo "=== Smoke test: scaffold + generate resources + cargo check ==="
   ensure_cli
+  export CARGO_TARGET_DIR="$ROOT/target/template-smoke"
 
   TMP="$(mktemp -d)"
   local app="$TMP/rustwing_template_smoke"
@@ -39,7 +40,15 @@ run_smoke() {
     --scope ticket_id \
     --fields 'ticket_id:uuid:required' \
     --fields 'body:string:required' > /dev/null
+  "$ROOT/target/debug/rustwing" g resource note \
+    --tenant org_id \
+    --scope ticket_id \
+    --fields 'org_id:uuid:required' \
+    --fields 'ticket_id:uuid:required' \
+    --fields 'body:string:required' > /dev/null
   cargo check
+  cargo clippy --workspace --all-targets -- -D warnings
+  cargo test
   popd > /dev/null
 
   echo "Template smoke test passed."

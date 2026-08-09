@@ -48,38 +48,80 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
             AppError::Core(CoreError::Database(ref err)) => {
-                if let Some(db_err) = err.as_database_error() {
-                    if let Some(code) = db_err.code() {
-                        match code.as_ref() {
-                            "23505" => {
-                                return (StatusCode::CONFLICT, error_response("conflict", "Resource already exists")).into_response();
-                            }
-                            "23503" => {
-                                return (StatusCode::CONFLICT, error_response("conflict", "Referenced resource not found")).into_response();
-                            }
-                            _ => {}
+                if let Some(db_err) = err.as_database_error()
+                    && let Some(code) = db_err.code()
+                {
+                    match code.as_ref() {
+                        "23505" => {
+                            return (
+                                StatusCode::CONFLICT,
+                                error_response("conflict", "Resource already exists"),
+                            )
+                                .into_response();
                         }
+                        "23503" => {
+                            return (
+                                StatusCode::CONFLICT,
+                                error_response("conflict", "Referenced resource not found"),
+                            )
+                                .into_response();
+                        }
+                        _ => {}
                     }
                 }
                 tracing::error!("Database error: {:?}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, error_response("internal_server_error", "Internal server error")).into_response()
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_response("internal_server_error", "Internal server error"),
+                )
+                    .into_response()
             }
-            AppError::Core(CoreError::NotFound) => {
-                (StatusCode::NOT_FOUND, error_response("not_found", "Resource not found")).into_response()
+            AppError::Core(CoreError::NotFound) => (
+                StatusCode::NOT_FOUND,
+                error_response("not_found", "Resource not found"),
+            )
+                .into_response(),
+            AppError::Core(CoreError::Unauthorized) => (
+                StatusCode::UNAUTHORIZED,
+                error_response(
+                    "unauthorized",
+                    "You must be logged in to access this resource",
+                ),
+            )
+                .into_response(),
+            AppError::Core(CoreError::Forbidden) => (
+                StatusCode::FORBIDDEN,
+                error_response("forbidden", "You do not have access to this tenant"),
+            )
+                .into_response(),
+            AppError::Core(CoreError::InvalidInput(message)) => (
+                StatusCode::BAD_REQUEST,
+                error_response("invalid_input", &message),
+            )
+                .into_response(),
+            AppError::Core(CoreError::Conflict(message)) => {
+                (StatusCode::CONFLICT, error_response("conflict", &message)).into_response()
             }
-            AppError::Core(CoreError::Unauthorized) => {
-                (StatusCode::UNAUTHORIZED, error_response("unauthorized", "You must be logged in to access this resource")).into_response()
-            }
-            AppError::Core(CoreError::Forbidden) => {
-                (StatusCode::FORBIDDEN, error_response("forbidden", "You do not have access to this tenant")).into_response()
-            }
+            AppError::Core(CoreError::Configuration(_)) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                error_response("internal_server_error", "Internal server error"),
+            )
+                .into_response(),
             AppError::Core(CoreError::Internal(msg)) => {
                 tracing::error!("Internal error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, error_response("internal_server_error", "Internal server error")).into_response()
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_response("internal_server_error", "Internal server error"),
+                )
+                    .into_response()
             }
             AppError::Validation(err) => {
                 tracing::warn!("Validation error: {:?}", err);
-                (StatusCode::BAD_REQUEST, error_response("validation_error", &err.to_string())).into_response()
+                (
+                    StatusCode::BAD_REQUEST,
+                    error_response("validation_error", &err.to_string()),
+                )
+                    .into_response()
             }
         }
     }

@@ -4,7 +4,7 @@ use axum::{
     http::{StatusCode, request::Parts},
 };
 use rustwing::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::state::AppState;

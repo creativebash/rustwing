@@ -11,12 +11,12 @@ use std::path::Path;
 use std::process::Command;
 
 // When releasing: bump CLI_VERSION in cli/Cargo.toml, bump FRAMEWORK_VERSION below
-const FRAMEWORK_VERSION: &str = "0.1.9";
+const FRAMEWORK_VERSION: &str = "0.1.10";
 const VERSION_INFO: &str = concat!(
     "CLI ",
     env!("CARGO_PKG_VERSION"),
     "\nrustwing framework ",
-    "0.1.9", // FRAMEWORK_VERSION — bump when rustwing/ releases
+    "0.1.10", // FRAMEWORK_VERSION — bump when rustwing/ releases
 );
 
 #[derive(Parser)]
